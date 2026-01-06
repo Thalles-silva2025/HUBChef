@@ -1,9 +1,9 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { 
   Plus, Trash2, Save, FileText, DollarSign, 
   ChefHat, ArrowRight, Printer, History,
   AlertTriangle, Scale, Edit2, TrendingUp,
-  BarChart2, Activity, X, Loader2, FileSpreadsheet, Download, Wine, Layers, ChevronLeft, Settings, ToggleLeft, ToggleRight, Target, Search, MoreHorizontal, CheckSquare, Square, AlertCircle, Clipboard, PieChart
+  BarChart2, Activity, X, Loader2, FileSpreadsheet, Download, Wine, Layers, ChevronLeft, Settings, ToggleLeft, ToggleRight, Target, Search, MoreHorizontal, CheckSquare, Square, AlertCircle, Clipboard, PieChart, CornerDownLeft
 } from 'lucide-react';
 import { 
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip as ReTooltip, ResponsiveContainer, PieChart as RePieChart, Pie, Cell, Legend
@@ -36,14 +36,46 @@ const formatMonth = (m: number) => {
   return months[m - 1] || m;
 };
 
+// Helper to parse input values (allows commas, cleans formatting)
+const parseInputNumber = (val: string): number => {
+    if (!val) return 0;
+    // Replace comma with dot for parsing
+    const clean = val.replace(/\./g, '').replace(',', '.'); 
+    // If user types just "1." or "1," return as is for text but 0 for calc, waiting for more input
+    if (clean === '.' || isNaN(Number(clean))) return 0;
+    return parseFloat(clean);
+};
+
+// --- TYPES ---
+interface PreviewItem {
+  id: string;
+  name: string;
+  price: number;
+  package_qty: number;
+  unit: string;
+  yield_factor: number;
+  cost_per_unit: number;
+  isValid: boolean;
+  errorMsg: string;
+}
+
+interface DeleteState {
+  open: boolean;
+  title: string;
+  message: string;
+  isBulk: boolean;
+  ids: string[];
+  type: 'ingredients' | 'recipes' | 'expenses' | 'categories';
+}
+
 // --- UI COMPONENTS ---
-const Card = ({ children, className = "" }: { children: React.ReactNode, className?: string }) => (
+const Card: React.FC<{ children?: React.ReactNode, className?: string }> = ({ children, className = "" }) => (
   <div className={`bg-white rounded-xl border border-slate-200 shadow-sm ${className}`}>
     {children}
   </div>
 );
 
-const InputGroup = ({ label, children, className = "" }: { label: string, children: React.ReactNode, className?: string }) => (
+const InputGroup = ({ label, children, className = "" }: { label: string, children?: React.ReactNode, className?: string }) => (
   <div className={`flex flex-col gap-1.5 ${className}`}>
     <label className="text-xs font-semibold text-slate-500 uppercase tracking-wide">{label}</label>
     {children}
@@ -66,7 +98,7 @@ const StyledSelect = (props: React.SelectHTMLAttributes<HTMLSelectElement>) => (
   </select>
 );
 
-const Badge = ({ children, color = "slate" }: { children: React.ReactNode, color?: "slate" | "emerald" | "red" | "blue" | "orange" | "purple" | "yellow" }) => {
+const Badge = ({ children, color = "slate" }: { children?: React.ReactNode, color?: "slate" | "emerald" | "red" | "blue" | "orange" | "purple" | "yellow" }) => {
   const colors = {
     slate: "bg-slate-100 text-slate-600",
     emerald: "bg-emerald-100 text-emerald-700",
@@ -83,8 +115,72 @@ const Badge = ({ children, color = "slate" }: { children: React.ReactNode, color
   );
 };
 
+// Component for handling numeric inputs with commas nicely
+const NumberInput = ({ 
+    value, 
+    onChange, 
+    onBlur,
+    onKeyDown,
+    className, 
+    placeholder,
+    ...props 
+}: { 
+    value: number; 
+    onChange: (val: number) => void; 
+    onBlur?: () => void;
+    onKeyDown?: (e: React.KeyboardEvent<HTMLInputElement>) => void;
+    className?: string; 
+    placeholder?: string;
+    autoFocus?: boolean;
+} & Omit<React.InputHTMLAttributes<HTMLInputElement>, 'value' | 'onChange' | 'onKeyDown'>) => {
+    const [localValue, setLocalValue] = useState(value?.toString().replace('.', ',') || '');
+
+    useEffect(() => {
+        // Sync with external changes only if not focused (simplified for this context)
+        // Or simply update when the external value changes significantly
+        if (document.activeElement !== document.getElementById(`num-input-${props.name || Math.random()}`)) {
+             setLocalValue(value?.toString().replace('.', ',') || '');
+        }
+    }, [value]);
+
+    const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+        const val = e.target.value;
+        // Allow digits, one comma, one dot
+        if (/^[0-9]*[,.]?[0-9]*$/.test(val)) {
+            setLocalValue(val);
+            const num = parseFloat(val.replace(',', '.'));
+            if (!isNaN(num)) onChange(num);
+            else onChange(0);
+        }
+    };
+
+    const handleBlur = () => {
+        const num = parseFloat(localValue.replace(',', '.'));
+        if(!isNaN(num)) {
+            const formatted = num.toString().replace('.', ',');
+            setLocalValue(formatted);
+        }
+        if (onBlur) onBlur();
+    }
+
+    return (
+        <StyledInput 
+            {...props}
+            type="text" 
+            inputMode="decimal"
+            value={localValue} 
+            onChange={handleChange}
+            onBlur={handleBlur}
+            onKeyDown={onKeyDown}
+            className={className}
+            placeholder={placeholder}
+        />
+    );
+};
+
 // --- PRINT COMPONENT ---
 const PrintPreviewComponent = ({ recipe, ingredients, recipes, onClose }: { recipe: Recipe, ingredients: Ingredient[], recipes: Recipe[], onClose: () => void }) => {
+    // ... (Print component remains unchanged)
     const isSubRecipe = recipe.type === 'sub_recipe';
     const availableSubRecipes = recipes
         .filter(r => r.type === 'sub_recipe' && r.id !== recipe.id)
@@ -255,27 +351,7 @@ const PrintPreviewComponent = ({ recipe, ingredients, recipes, onClose }: { reci
     );
 };
 
-// --- TYPES FOR IMPORT & DELETE ---
-interface PreviewItem {
-    id?: string;
-    name: string;
-    price: number;
-    package_qty: number;
-    unit: string;
-    yield_factor: number;
-    cost_per_unit: number;
-    isValid: boolean;
-    errorMsg?: string;
-}
-
-interface DeleteState {
-    open: boolean;
-    title: string;
-    message: string;
-    isBulk: boolean;
-    ids: string[];
-    type: 'ingredients' | 'recipes' | 'expenses' | 'categories';
-}
+// ... (Rest of App component imports and setup remains similar)
 
 // --- MAIN APP COMPONENT ---
 export default function App() {
@@ -302,6 +378,10 @@ export default function App() {
   const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
   const [showUnsavedModal, setShowUnsavedModal] = useState(false);
   const [pendingView, setPendingView] = useState<string | null>(null);
+  
+  // Quick Add State (Recipe Editor)
+  const [quickAddForm, setQuickAddForm] = useState({ type: 'ingredient' as 'ingredient' | 'sub_recipe', ref_id: '', qty: 0 });
+  const quickAddSelectRef = useRef<HTMLSelectElement>(null);
 
   // Import Modal State
   const [showImportModal, setShowImportModal] = useState(false);
@@ -341,50 +421,36 @@ export default function App() {
         // Only active in recipe editor
         if (view !== 'recipe-editor') return;
         
-        // Alt + I: Add Ingredient
+        // Focus Quick Add on shortcuts
         if (e.altKey && (e.key === 'i' || e.key === 'I')) {
             e.preventDefault();
-            setCurrentRecipe(prev => {
-                if(!prev) return null;
-                const newItem = { item_type: 'ingredient', ref_id: '', qty: 0, unit: 'kg' };
-                // Cast to avoid TS issues with virtual field
-                return { ...prev, items: [...(prev.items || []), newItem] } as Recipe;
-            });
-            setHasUnsavedChanges(true);
+            setQuickAddForm(prev => ({ ...prev, type: 'ingredient' }));
+            setTimeout(() => quickAddSelectRef.current?.focus(), 100);
         }
 
-        // Alt + B: Add Base
         if (e.altKey && (e.key === 'b' || e.key === 'B')) {
             e.preventDefault();
-            setCurrentRecipe(prev => {
-                if(!prev) return null;
-                const newItem = { item_type: 'sub_recipe', ref_id: '', qty: 0, unit: 'kg' };
-                return { ...prev, items: [...(prev.items || []), newItem] } as Recipe;
-            });
-            setHasUnsavedChanges(true);
+            setQuickAddForm(prev => ({ ...prev, type: 'sub_recipe' }));
+            setTimeout(() => quickAddSelectRef.current?.focus(), 100);
         }
     };
 
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [view]); // Dependencies: active view
+  }, [view]);
 
-  // --- DATA FETCHING ---
+  // ... (Data Fetching, Delete, Selection, Calculation Logic same as before) ...
   const fetchData = async () => {
     if (!session?.user) return;
-    
     const { data: ingData } = await supabase.from('ingredients').select('*').order('name');
     if(ingData) setIngredients(ingData);
-
     const { data: recData } = await supabase.from('recipes').select('*, recipe_items(*)').order('last_update', { ascending: false });
     if(recData) {
         const mappedRecipes = recData.map(r => ({ ...r, items: r.recipe_items || [] }));
         setRecipes(mappedRecipes);
     }
-
     const { data: expData } = await supabase.from('fixed_expenses').select('*').order('year', {ascending:false}).order('month', {ascending:false});
     if(expData) setExpenses(expData);
-
     const { data: catData } = await supabase.from('categories').select('*').order('name');
     if(catData) setCategories(catData.map(c => c.name));
     else setCategories(['Prato Principal', 'Entrada', 'Sobremesa', 'Drink', 'Bebida Não Alcoólica', 'Base/Molho']);
@@ -403,7 +469,6 @@ export default function App() {
     }
   }, [session]);
 
-  // --- SELECTION LOGIC ---
   const toggleSelection = (id: string) => {
       setSelectedIds(prev => {
           const newSet = new Set(prev);
@@ -418,12 +483,10 @@ export default function App() {
       else setSelectedIds(new Set(ids));
   };
 
-  // --- DELETE LOGIC ---
   const confirmDelete = (type: 'ingredients' | 'recipes' | 'expenses' | 'categories', ids: string[], isBulk = false) => {
       let title = '';
       let message = '';
       const count = ids.length;
-
       if (type === 'ingredients') {
           title = isBulk ? `Excluir ${count} Insumos?` : 'Excluir Insumo?';
           message = 'Esta ação é irreversível. Se algum insumo estiver em uso, a exclusão falhará.';
@@ -437,23 +500,16 @@ export default function App() {
           title = 'Excluir Categoria?';
           message = 'Deseja remover esta categoria?';
       }
-
       setDeleteModal({ open: true, title, message, isBulk, ids, type });
   };
 
   const executeDelete = async () => {
       setIsDeleting(true);
       const { type, ids } = deleteModal;
-      
       const { error } = await supabase.from(type === 'expenses' ? 'fixed_expenses' : type).delete().in(type === 'categories' ? 'name' : 'id', ids);
-      
       if(error) {
-          console.error(error);
-          if (error.code === '23503') {
-             alert("Não foi possível excluir. Este item está sendo usado em outras partes do sistema.");
-          } else {
-             alert("Erro ao excluir: " + error.message);
-          }
+          if (error.code === '23503') alert("Não foi possível excluir. Este item está sendo usado em outras partes do sistema.");
+          else alert("Erro ao excluir: " + error.message);
       } else {
           setSelectedIds(new Set());
           if (type === 'ingredients') {
@@ -471,9 +527,7 @@ export default function App() {
       setDeleteModal(prev => ({ ...prev, open: false }));
   };
 
-  // --- CALCULATION LOGIC ---
   const calculateRealCost = (price: number, qty: number, yieldPct: number) => {
-    // Formula: (Price) / (Qty * (Yield%/100))
     if (!price || !qty || !yieldPct) return 0;
     const usableQty = qty * (yieldPct / 100);
     return usableQty > 0 ? price / usableQty : 0;
@@ -481,25 +535,21 @@ export default function App() {
 
   const handleSaveIngredient = async () => {
     if (!ingForm.name || !ingForm.price) return;
-    
     if (!ingForm.id) {
         const exists = ingredients.some(i => i.name!.toLowerCase() === ingForm.name!.toLowerCase());
         if(exists) { alert('Nome duplicado!'); return; }
     }
-
     const yf = Number(ingForm.yield_factor);
     const cost = calculateRealCost(Number(ingForm.price), Number(ingForm.package_qty), yf);
-
     const payload = {
         name: ingForm.name,
         unit: ingForm.unit,
         price: Number(ingForm.price),
         package_qty: Number(ingForm.package_qty),
-        yield_factor: yf / 100, // Stored as 0.0-1.0 in DB
+        yield_factor: yf / 100, 
         cost_per_unit: cost,
         user_id: session.user.id
     };
-
     if (ingForm.id) {
         await supabase.from('ingredients').update(payload).eq('id', ingForm.id);
         setIngredients(prev => prev.map(i => i.id === ingForm.id ? { ...i, ...payload } as Ingredient : i));
@@ -510,53 +560,40 @@ export default function App() {
     setIngForm({ unit: 'kg', package_qty: 1, yield_factor: 100 });
   };
 
-  // --- PARSER LOGIC ---
   const parseImportData = (text: string) => {
       const lines = text.split(/\r?\n/);
       const parsed: PreviewItem[] = [];
-      
       const parsePtBrNumber = (val: string) => {
           if(!val) return 0;
           let str = val.toString().replace(/[^0-9.,-]/g, '');
-          
           if (str.includes(',')) {
               if (str.includes('.')) {
-                  // 1.200,50
                   if (str.lastIndexOf(',') > str.lastIndexOf('.')) {
                       str = str.replace(/\./g, '').replace(',', '.');
                   } else {
-                      // 1,200.50 (mixed)
                       str = str.replace(/,/g, '');
                   }
               } else {
-                  // 1,60
                   str = str.replace(',', '.');
               }
           } 
-          // If 1.6 (no comma), parseFloat handles it as 1.6
-          
           return parseFloat(str) || 0;
       }
-      
       const parseUnit = (str: string) => {
           if(!str) return 'kg';
           const match = str.match(/(kg|g|L|ml|un|maço|cx|pct)/i);
           return match ? match[0].toLowerCase() : 'kg';
       };
-
       lines.forEach((line, idx) => {
           if (!line.trim()) return;
           let cols = line.split('\t');
           if (cols.length < 2) cols = line.split(';');
           if (cols.length < 2) cols = line.split(',');
-
           if (cols[0].toLowerCase().includes('nome')) return;
-
           const name = cols[0].trim();
           let price = 0, unit = 'kg', pkg = 1, yld = 100;
           let isValid = true;
           let errorMsg = "";
-
           if (cols.length >= 2) {
               price = parsePtBrNumber(cols[1]);
               if (cols.length >= 3) {
@@ -567,13 +604,10 @@ export default function App() {
               }
               if (cols.length >= 4) yld = parsePtBrNumber(cols[3]);
           }
-
           if (!name) { isValid = false; errorMsg = "Nome ausente"; }
           else if (ingredients.some(i => i.name.toLowerCase() === name.toLowerCase())) { isValid = false; errorMsg = "Duplicado"; }
           else if (price <= 0) { isValid = false; errorMsg = "Preço inválido"; }
-
           const cost = calculateRealCost(price, pkg, yld);
-
           parsed.push({ 
               id: `temp-${idx}`, name, price, package_qty: pkg, unit, yield_factor: yld, cost_per_unit: cost, isValid, errorMsg 
           });
@@ -590,7 +624,6 @@ export default function App() {
   const executeImport = async () => {
       setIsProcessingImport(true);
       const validItems = importPreviewData.filter(i => i.isValid);
-      
       const payload = validItems.map(i => ({
           user_id: session.user.id,
           name: i.name,
@@ -600,9 +633,7 @@ export default function App() {
           yield_factor: i.yield_factor / 100,
           cost_per_unit: i.cost_per_unit
       }));
-
       const { error } = await supabase.from('ingredients').insert(payload);
-      
       setIsProcessingImport(false);
       if (error) {
           alert("Erro na importação.");
@@ -617,20 +648,18 @@ export default function App() {
       }
   };
 
-  // --- RECIPE LOGIC ---
   const startNewRecipe = (type: 'food' | 'drink' | 'sub_recipe') => {
       const lastFixed = expenses[0]?.cost_per_dish || 0;
       const isSub = type === 'sub_recipe';
       const isDrink = type === 'drink';
-      
       setCurrentRecipe({
           id: null,
           user_id: session.user.id,
-          type: type, // Ensure type is passed correctly
+          type: type,
           name: '',
           category: isDrink ? 'Drink' : 'Prato Principal',
           portions: 1,
-          unit: isSub ? 'kg' : 'porções', // Default unit logic
+          unit: isSub ? 'kg' : 'porções',
           operational_prep: 0, operational_cook: 0, operational_plating: 0,
           extra_packaging: 0, extra_labor: 0, extra_utilities: 0,
           extra_fixed_cost: isSub ? 0 : lastFixed,
@@ -649,32 +678,21 @@ export default function App() {
           alert("Por favor, preencha o nome da receita.");
           return;
       }
-      
       try {
-          // 1. Prepare base payload
-          // Explicitly destructure to avoid sending unwanted fields
           const { 
-              id, items, recipe_items, // exclude these
-              last_update, user_id, version,
-              ...rest 
+              id, items, recipe_items, last_update, user_id, version, ...rest 
           } = (currentRecipe as any);
-
           const recipePayload: any = { ...rest };
-
-          // 2. Set system fields
           recipePayload.last_update = new Date().toISOString();
           recipePayload.user_id = session.user.id;
           
-          // 3. Handle ID and Version
           if (id) {
              recipePayload.id = id;
              recipePayload.version = (Number(version) || 1) + 1;
           } else {
-             // Do NOT set recipePayload.id to null, let DB generate it
              recipePayload.version = 1;
           }
 
-          // 4. Ensure numerics
           const numericFields = [
               'portions', 'operational_prep', 'operational_cook', 'operational_plating',
               'extra_packaging', 'extra_labor', 'extra_utilities', 'extra_fixed_cost',
@@ -690,7 +708,6 @@ export default function App() {
 
           let recipeId = id;
           
-          // 5. Perform DB Operation
           if (!recipeId) {
               const { data, error } = await supabase.from('recipes').insert(recipePayload).select().single();
               if(error) throw error;
@@ -700,7 +717,6 @@ export default function App() {
               if(error) throw error;
           }
 
-          // 6. Handle Items
           await supabase.from('recipe_items').delete().eq('recipe_id', recipeId);
           
           if (currentRecipe.items && currentRecipe.items.length > 0) {
@@ -717,16 +733,14 @@ export default function App() {
               if(itemsError) throw itemsError;
           }
 
-          // Success State
           setHasUnsavedChanges(false);
           setShowUnsavedModal(false);
-          await fetchData(); // Refresh lists
+          await fetchData();
           
           if(pendingView) { 
               setView(pendingView); 
               setPendingView(null); 
           } else {
-              // Redirect back to correct list
               setView(currentRecipe.type === 'drink' ? 'drinks' : currentRecipe.type === 'sub_recipe' ? 'sub_recipes' : 'recipes');
           }
 
@@ -760,9 +774,38 @@ export default function App() {
       }
   };
 
+  const handleQuickAddItem = () => {
+      if(!currentRecipe || !quickAddForm.ref_id || quickAddForm.qty <= 0) return;
+      
+      let unit = 'un';
+      if(quickAddForm.type === 'ingredient') {
+          const ing = ingredients.find(i => i.id === quickAddForm.ref_id);
+          if(ing) unit = ing.unit;
+      } else {
+          const sub = recipes.find(r => r.id === quickAddForm.ref_id);
+          if(sub) unit = sub.unit;
+      }
+
+      const newItem: RecipeItemDB = {
+          item_type: quickAddForm.type,
+          ref_id: quickAddForm.ref_id,
+          qty: quickAddForm.qty,
+          unit: unit
+      };
+
+      setCurrentRecipe({
+          ...currentRecipe,
+          items: [newItem, ...currentRecipe.items] // Add to top
+      });
+      setHasUnsavedChanges(true);
+      
+      // Reset qty but keep type and potentially focus for rapid entry
+      setQuickAddForm(prev => ({ ...prev, ref_id: '', qty: 0 }));
+      setTimeout(() => quickAddSelectRef.current?.focus(), 50);
+  };
+
   const getRecipeCosts = (recipe: Recipe) => {
       const availableSubs = recipes.filter(r => r.type === 'sub_recipe' && r.id !== recipe.id);
-      
       const getCost = (item: RecipeItemDB) => {
           if (item.item_type === 'ingredient') {
               const ing = ingredients.find(i => i.id === item.ref_id);
@@ -770,36 +813,27 @@ export default function App() {
           } else {
               const sub = availableSubs.find(s => s.id === item.ref_id);
               if (!sub) return 0;
-              
-              // Calculate Sub-recipe Cost Recursively
               const subItemsCost = (sub.items || []).reduce((acc, subItem) => {
                    const ing = ingredients.find(i => i.id === subItem.ref_id); 
                    return acc + (ing ? subItem.qty * ing.cost_per_unit : 0);
               }, 0);
               const subTotal = subItemsCost + Number(sub.extra_utilities||0) + Number(sub.extra_packaging||0);
-              
-              // CRITICAL: Divide by portions to get Unit Cost of the Base
               const subCostPerUnit = Number(sub.portions) > 0 ? subTotal / Number(sub.portions) : 0;
-              
               return item.qty * subCostPerUnit;
           }
       };
-
       const itemsCost = (recipe.items || []).reduce((acc, item) => acc + getCost(item), 0);
       const extra = Number(recipe.extra_packaging||0) + Number(recipe.extra_labor||0) + 
                     Number(recipe.extra_utilities||0) + Number(recipe.extra_fixed_cost||0) + 
                     Number(recipe.extra_other_direct||0) + Number(recipe.extra_ice_garnish||0);
-      
       const totalCost = itemsCost + extra;
       const portions = Number(recipe.portions) || 1;
       const costPerPortion = totalCost / portions;
-
       const price = Number(recipe.final_price) || 0;
       const tax = price * (Number(recipe.taxes_pct)/100);
       const card = price * (Number(recipe.card_fee_pct)/100);
       const profit = price - costPerPortion - tax - card;
       const margin = price > 0 ? (profit/price)*100 : 0;
-
       return { totalCost, itemsCost, costPerPortion, profit, margin, price, tax };
   };
 
@@ -824,7 +858,7 @@ export default function App() {
 
   return (
     <div className="flex h-screen w-full bg-slate-50 overflow-hidden font-sans text-slate-900">
-        {/* --- MODALS --- */}
+        {/* ... (Modals remain the same) ... */}
         {showImportModal && (
             <div className="fixed inset-0 z-[100] bg-slate-900/50 flex items-center justify-center p-4 backdrop-blur-sm">
                 <div className="bg-white rounded-xl shadow-2xl w-full max-w-4xl max-h-[90vh] flex flex-col overflow-hidden animate-in fade-in zoom-in-95 duration-200">
@@ -834,7 +868,6 @@ export default function App() {
                         </h3>
                         <button onClick={() => setShowImportModal(false)} className="p-2 hover:bg-slate-100 rounded-full text-slate-400 hover:text-slate-600 transition-colors"><X size={20}/></button>
                     </div>
-                    
                     <div className="flex-1 overflow-y-auto p-6">
                         {!isImportReviewStep ? (
                             <div className="space-y-4">
@@ -891,7 +924,6 @@ export default function App() {
                             </div>
                         )}
                     </div>
-
                     <div className="p-6 border-t border-slate-100 bg-slate-50/50 flex justify-end gap-3">
                         {!isImportReviewStep ? (
                             <>
@@ -963,7 +995,7 @@ export default function App() {
              <div className="h-16 flex items-center justify-center border-b border-slate-800/50 mb-4">
                 {isSidebarOpen ? (<div className="flex items-center gap-2 animate-in fade-in duration-300"><div className="bg-emerald-600 p-1.5 rounded-lg"><ChefHat className="text-white" size={20}/></div><span className="text-white font-bold text-lg tracking-tight">HUBChef</span></div>) : (<div className="bg-emerald-600 p-2 rounded-lg"><ChefHat className="text-white" size={24}/></div>)}
             </div>
-            <div className="flex-1 px-3 space-y-1 overflow-y-auto custom-scrollbar">
+            <div className={`flex-1 px-3 space-y-1 overflow-y-auto ${!isSidebarOpen ? 'scrollbar-hide' : 'custom-scrollbar'}`}>
                 <NavButton icon={Activity} label="Dashboard" target="dashboard" />
                 <NavButton icon={BarChart2} label="Relatórios" target="reports" />
                 <div className="my-4 border-t border-slate-800/50 mx-2"></div>
@@ -1002,12 +1034,12 @@ export default function App() {
                             <div className="space-y-4" id="ing-form">
                                 <InputGroup label="Nome do Item"><StyledInput placeholder="Ex: Filé Mignon" value={ingForm.name || ''} onChange={e => setIngForm({...ingForm, name: e.target.value})} autoFocus/></InputGroup>
                                 <div className="grid grid-cols-2 gap-4">
-                                    <InputGroup label="Preço Pago (R$)"><StyledInput type="number" placeholder="0.00" value={ingForm.price || ''} onChange={e => setIngForm({...ingForm, price: Number(e.target.value)})} /></InputGroup>
+                                    <InputGroup label="Preço Pago (R$)"><StyledInput type="text" inputMode="decimal" placeholder="0,00" value={ingForm.price !== undefined ? ingForm.price.toString().replace('.', ',') : ''} onChange={e => setIngForm({...ingForm, price: parseInputNumber(e.target.value)})} /></InputGroup>
                                     <InputGroup label="Unidade Compra"><StyledSelect value={ingForm.unit} onChange={e => setIngForm({...ingForm, unit: e.target.value})}>{UNITS.map(u => <option key={u} value={u}>{u}</option>)}</StyledSelect></InputGroup>
                                 </div>
                                 <div className="grid grid-cols-2 gap-4">
-                                    <InputGroup label="Qtd Embalagem"><StyledInput type="number" placeholder="1" value={ingForm.package_qty} onChange={e => setIngForm({...ingForm, package_qty: Number(e.target.value)})} /></InputGroup>
-                                    <InputGroup label="Rendimento %"><StyledInput type="number" placeholder="100" value={ingForm.yield_factor} onChange={e => setIngForm({...ingForm, yield_factor: Number(e.target.value)})} /></InputGroup>
+                                    <InputGroup label="Qtd Embalagem"><StyledInput type="text" inputMode="decimal" placeholder="1" value={ingForm.package_qty !== undefined ? ingForm.package_qty.toString().replace('.', ',') : ''} onChange={e => setIngForm({...ingForm, package_qty: parseInputNumber(e.target.value)})} /></InputGroup>
+                                    <InputGroup label="Rendimento %"><StyledInput type="text" inputMode="decimal" placeholder="100" value={ingForm.yield_factor !== undefined ? ingForm.yield_factor.toString().replace('.', ',') : ''} onChange={e => setIngForm({...ingForm, yield_factor: parseInputNumber(e.target.value)})} /></InputGroup>
                                 </div>
                             </div>
                             <div className="mt-8 bg-slate-50 p-4 rounded-lg border border-slate-200">
@@ -1032,6 +1064,7 @@ export default function App() {
                                             <td className="p-4 text-center pr-6"><button onClick={(e) => { e.stopPropagation(); confirmDelete('ingredients', [ing.id]); }} className="text-slate-300 hover:text-red-500 transition-colors p-2 rounded-full hover:bg-red-50 z-10 relative"><Trash2 size={16}/></button></td>
                                         </tr>))}</tbody></table></div></Card></div></div>)}
 
+            {/* ... (View: Recipes, Drinks, Sub-recipes - No changes here, kept as previous) */}
             {['recipes', 'drinks', 'sub_recipes'].includes(view) && (
                 <div className="p-6 md:p-10 w-full max-w-7xl mx-auto">
                     <header className="flex flex-col md:flex-row justify-between items-start md:items-center mb-8 gap-4">
@@ -1057,6 +1090,7 @@ export default function App() {
                         })}
                     </div></div>)}
 
+            {/* ... (View: Dashboard, Fixed Expenses, Categories, Reports - No changes) ... */}
             {view === 'dashboard' && (
                 <div className="p-6 md:p-10 w-full max-w-[1600px] mx-auto">
                      <div className="mb-8"><h1 className="text-3xl font-bold text-slate-900 flex items-center gap-3"><Activity className="text-emerald-600"/> Dashboard</h1><p className="text-slate-500 mt-1 ml-11">Visão geral da saúde financeira do seu cardápio.</p></div>
@@ -1082,7 +1116,7 @@ export default function App() {
 
             {view === 'fixed-expenses' && (
                 <div className="p-6 md:p-10 w-full max-w-5xl mx-auto"><h1 className="text-3xl font-bold text-slate-900 mb-8 flex items-center gap-3"><TrendingUp className="text-amber-500"/> Despesas Fixas</h1>
-                    <Card className="p-6 mb-8 bg-slate-50 border-amber-200"><h3 className="font-bold text-slate-800 mb-4 flex items-center gap-2">Registrar Novo Período</h3><div className="flex flex-col md:flex-row gap-4 items-end"><InputGroup label="Mês" className="flex-1"><StyledSelect value={newExpense.month} onChange={e => setNewExpense({...newExpense, month: e.target.value})}>{Array.from({length:12}, (_,i) => <option key={i+1} value={i+1}>{formatMonth(i+1)}</option>)}</StyledSelect></InputGroup><InputGroup label="Ano" className="w-24"><StyledInput type="number" value={newExpense.year} onChange={e => setNewExpense({...newExpense, year: e.target.value})} /></InputGroup><InputGroup label="Total Despesas (R$)" className="flex-1"><StyledInput type="number" value={newExpense.total} onChange={e => setNewExpense({...newExpense, total: e.target.value})} /></InputGroup><InputGroup label="Pratos Vendidos" className="flex-1"><StyledInput type="number" value={newExpense.dishes} onChange={e => setNewExpense({...newExpense, dishes: e.target.value})} /></InputGroup><button onClick={async () => { const cost = Number(newExpense.total) / Number(newExpense.dishes); await supabase.from('fixed_expenses').insert({ user_id: session.user.id, month: Number(newExpense.month), year: Number(newExpense.year), total_expenses: Number(newExpense.total), total_dishes_sold: Number(newExpense.dishes), cost_per_dish: cost }); setNewExpense({...newExpense, total: '', dishes: ''}); }} className="bg-amber-500 hover:bg-amber-600 text-white px-6 py-2.5 rounded-lg font-bold shadow-lg shadow-amber-500/20 mb-[1px]">Salvar</button></div></Card>
+                    <Card className="p-6 mb-8 bg-slate-50 border-amber-200"><h3 className="font-bold text-slate-800 mb-4 flex items-center gap-2">Registrar Novo Período</h3><div className="flex flex-col md:flex-row gap-4 items-end"><InputGroup label="Mês" className="flex-1"><StyledSelect value={newExpense.month} onChange={e => setNewExpense({...newExpense, month: e.target.value})}>{Array.from({length:12}, (_,i) => <option key={i+1} value={i+1}>{formatMonth(i+1)}</option>)}</StyledSelect></InputGroup><InputGroup label="Ano" className="w-24"><StyledInput type="text" inputMode="numeric" value={newExpense.year} onChange={e => setNewExpense({...newExpense, year: e.target.value})} /></InputGroup><InputGroup label="Total Despesas (R$)" className="flex-1"><StyledInput type="text" inputMode="decimal" value={newExpense.total} onChange={e => setNewExpense({...newExpense, total: e.target.value})} /></InputGroup><InputGroup label="Pratos Vendidos" className="flex-1"><StyledInput type="text" inputMode="decimal" value={newExpense.dishes} onChange={e => setNewExpense({...newExpense, dishes: e.target.value})} /></InputGroup><button onClick={async () => { const cost = parseInputNumber(newExpense.total) / parseInputNumber(newExpense.dishes); await supabase.from('fixed_expenses').insert({ user_id: session.user.id, month: Number(newExpense.month), year: Number(newExpense.year), total_expenses: parseInputNumber(newExpense.total), total_dishes_sold: parseInputNumber(newExpense.dishes), cost_per_dish: cost }); setNewExpense({...newExpense, total: '', dishes: ''}); }} className="bg-amber-500 hover:bg-amber-600 text-white px-6 py-2.5 rounded-lg font-bold shadow-lg shadow-amber-500/20 mb-[1px]">Salvar</button></div></Card>
                     <Card><table className="w-full text-left text-sm"><thead className="bg-slate-50 text-slate-500 uppercase text-xs border-b"><tr><th className="p-4 pl-6">Período</th><th className="p-4 text-right">Despesas Totais</th><th className="p-4 text-right">Vendas</th><th className="p-4 text-right">Custo Fixo / Prato</th><th className="p-4"></th></tr></thead><tbody className="divide-y divide-slate-100">{expenses.map(exp => (<tr key={exp.id} className="hover:bg-slate-50"><td className="p-4 pl-6 font-bold text-slate-700">{formatMonth(exp.month)} <span className="text-slate-400 font-normal">/ {exp.year}</span></td><td className="p-4 text-right">{formatCurrency(exp.total_expenses)}</td><td className="p-4 text-right">{exp.total_dishes_sold}</td><td className="p-4 text-right text-amber-600 font-bold bg-amber-50/50">{formatCurrency(exp.cost_per_dish)}</td><td className="p-4 text-center"><button onClick={() => confirmDelete('expenses', [exp.id])} className="text-slate-300 hover:text-red-500"><Trash2 size={16}/></button></td></tr>))}</tbody></table></Card></div>)}
 
             {view === 'categories' && (<div className="p-10 max-w-2xl mx-auto"><h1 className="text-3xl font-bold text-slate-900 mb-8">Gerenciar Categorias</h1><Card className="p-6 mb-6"><div className="flex gap-4"><StyledInput placeholder="Nova Categoria (ex: Entradas Frias)" value={newCatInput} onChange={e => setNewCatInput(e.target.value)} /><button onClick={async () => { if(newCatInput) { await supabase.from('categories').insert({user_id: session.user.id, name: newCatInput}); setNewCatInput(''); }}} className="bg-slate-900 text-white px-6 rounded-lg font-bold">Adicionar</button></div></Card><div className="grid grid-cols-1 md:grid-cols-2 gap-3">{categories.map(cat => (<Card key={cat} className="p-4 flex justify-between items-center group"><span className="font-medium text-slate-700">{cat}</span><button onClick={() => confirmDelete('categories', [cat])} className="text-slate-300 hover:text-red-500 opacity-0 group-hover:opacity-100 transition-opacity"><Trash2 size={16}/></button></Card>))}</div></div>)}
@@ -1124,7 +1158,7 @@ export default function App() {
                                     </InputGroup>
                                     <InputGroup label="Rendimento Final">
                                         <div className="flex gap-2">
-                                            <StyledInput type="number" value={currentRecipe.portions} onChange={e => {setCurrentRecipe({...currentRecipe, portions: Number(e.target.value)}); setHasUnsavedChanges(true);}} /> 
+                                            <NumberInput value={currentRecipe.portions} onChange={v => {setCurrentRecipe({...currentRecipe, portions: v}); setHasUnsavedChanges(true);}} /> 
                                             {currentRecipe.type === 'sub_recipe' ? (
                                                 <StyledSelect className="min-w-[80px]" value={currentRecipe.unit} onChange={e => {setCurrentRecipe({...currentRecipe, unit: e.target.value}); setHasUnsavedChanges(true);}}>
                                                     {UNITS.map(u => <option key={u} value={u}>{u}</option>)}
@@ -1137,16 +1171,97 @@ export default function App() {
                                         </div>
                                     </InputGroup>
                                 </Card>
-                                {currentRecipe.type !== 'sub_recipe' && (<Card className="col-span-4 p-6"><InputGroup label="Tempo Operacional (min)"><div className="flex gap-2"><div className="flex-1 text-center"><StyledInput placeholder="Prep" className="text-center" type="number" value={currentRecipe.operational_prep} onChange={e => {setCurrentRecipe({...currentRecipe, operational_prep: Number(e.target.value)}); setHasUnsavedChanges(true);}}/><span className="text-[10px] text-slate-400 mt-1 block">PREP</span></div><div className="flex-1 text-center"><StyledInput placeholder="Cook" className="text-center" type="number" value={currentRecipe.operational_cook} onChange={e => {setCurrentRecipe({...currentRecipe, operational_cook: Number(e.target.value)}); setHasUnsavedChanges(true);}}/><span className="text-[10px] text-slate-400 mt-1 block">FOGO</span></div><div className="flex-1 text-center"><StyledInput placeholder="Plate" className="text-center" type="number" value={currentRecipe.operational_plating} onChange={e => {setCurrentRecipe({...currentRecipe, operational_plating: Number(e.target.value)}); setHasUnsavedChanges(true);}}/><span className="text-[10px] text-slate-400 mt-1 block">MONTAGEM</span></div></div></InputGroup></Card>)}
+                                {currentRecipe.type !== 'sub_recipe' && (<Card className="col-span-4 p-6"><InputGroup label="Tempo Operacional (min)"><div className="flex gap-2"><div className="flex-1 text-center"><NumberInput placeholder="Prep" className="text-center" value={currentRecipe.operational_prep} onChange={v => {setCurrentRecipe({...currentRecipe, operational_prep: v}); setHasUnsavedChanges(true);}}/><span className="text-[10px] text-slate-400 mt-1 block">PREP</span></div><div className="flex-1 text-center"><NumberInput placeholder="Cook" className="text-center" value={currentRecipe.operational_cook} onChange={v => {setCurrentRecipe({...currentRecipe, operational_cook: v}); setHasUnsavedChanges(true);}}/><span className="text-[10px] text-slate-400 mt-1 block">FOGO</span></div><div className="flex-1 text-center"><NumberInput placeholder="Plate" className="text-center" value={currentRecipe.operational_plating} onChange={v => {setCurrentRecipe({...currentRecipe, operational_plating: v}); setHasUnsavedChanges(true);}}/><span className="text-[10px] text-slate-400 mt-1 block">MONTAGEM</span></div></div></InputGroup></Card>)}
                              </div>
-                             <Card className="overflow-hidden min-h-[400px] flex flex-col"><div className="p-4 bg-slate-50 border-b border-slate-200 flex justify-between items-center"><h3 className="font-bold text-slate-700 flex items-center gap-2"><Layers size={18} className="text-slate-400"/> Composição</h3><div className="flex gap-2"><button onClick={() => { setCurrentRecipe({...currentRecipe, items: [...currentRecipe.items, { item_type: 'ingredient', ref_id: '', qty: 0, unit: 'kg' }]}); setHasUnsavedChanges(true); }} className="text-xs bg-blue-50 text-blue-700 border border-blue-200 hover:bg-blue-100 px-3 py-2 rounded-lg flex items-center gap-1 font-bold transition-colors" title="Atalho: Alt + I"><Plus size={14}/> Adicionar Insumo</button><button onClick={() => { setCurrentRecipe({...currentRecipe, items: [...currentRecipe.items, { item_type: 'sub_recipe', ref_id: '', qty: 0, unit: 'kg' }]}); setHasUnsavedChanges(true); }} className="text-xs bg-orange-50 text-orange-700 border border-orange-200 hover:bg-orange-100 px-3 py-2 rounded-lg flex items-center gap-1 font-bold transition-colors" title="Atalho: Alt + B"><Plus size={14}/> Adicionar Base</button></div></div>
-                                 <div className="flex-1 overflow-x-auto"><table className="w-full text-sm"><thead className="bg-white border-b border-slate-100 text-slate-500"><tr><th className="p-3 pl-6 text-left w-20">Tipo</th><th className="p-3 text-left w-[40%]">Item</th><th className="p-3 w-24">Qtd</th><th className="p-3 w-20 text-center">Un</th><th className="p-3 text-right">Custo</th><th className="w-16"></th></tr></thead>
-                                        <tbody className="divide-y divide-slate-50">{currentRecipe.items.map((item, idx) => {
+                             <Card className="overflow-hidden min-h-[500px] flex flex-col relative">
+                                 {/* --- QUICK ADD HEADER --- */}
+                                 <div className="p-4 bg-slate-50 border-b border-slate-200 z-10">
+                                     <div className="flex justify-between items-center mb-3">
+                                        <h3 className="font-bold text-slate-700 flex items-center gap-2"><Layers size={18} className="text-slate-400"/> Composição</h3>
+                                        <div className="flex bg-white rounded-lg p-1 border border-slate-200 shadow-sm">
+                                            <button onClick={() => setQuickAddForm(prev => ({...prev, type: 'ingredient'}))} className={`px-3 py-1 text-xs font-bold rounded-md transition-colors ${quickAddForm.type === 'ingredient' ? 'bg-blue-50 text-blue-700' : 'text-slate-500 hover:bg-slate-50'}`}>Insumos</button>
+                                            <button onClick={() => setQuickAddForm(prev => ({...prev, type: 'sub_recipe'}))} className={`px-3 py-1 text-xs font-bold rounded-md transition-colors ${quickAddForm.type === 'sub_recipe' ? 'bg-orange-50 text-orange-700' : 'text-slate-500 hover:bg-slate-50'}`}>Bases</button>
+                                        </div>
+                                     </div>
+                                     <div className="flex gap-3 items-end">
+                                         <div className="flex-1">
+                                             <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1 block">Selecionar Item ({quickAddForm.type === 'ingredient' ? 'Insumo' : 'Base'})</label>
+                                             <StyledSelect 
+                                                ref={quickAddSelectRef}
+                                                value={quickAddForm.ref_id} 
+                                                onChange={e => setQuickAddForm({...quickAddForm, ref_id: e.target.value})}
+                                                className="bg-white"
+                                             >
+                                                 <option value="">Selecione...</option>
+                                                 {quickAddForm.type === 'ingredient' 
+                                                    ? ingredients.map(i => <option key={i.id} value={i.id}>{i.name}</option>)
+                                                    : recipes.filter(r => r.type === 'sub_recipe' && r.id !== currentRecipe.id).map(r => <option key={r.id} value={r.id}>{r.name}</option>)
+                                                 }
+                                             </StyledSelect>
+                                         </div>
+                                         <div className="w-24">
+                                             <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1 block">Qtd</label>
+                                             <NumberInput 
+                                                className="text-center font-bold bg-white" 
+                                                placeholder="0" 
+                                                value={quickAddForm.qty} 
+                                                onChange={v => setQuickAddForm({...quickAddForm, qty: v})} 
+                                                onKeyDown={e => { if(e.key === 'Enter') handleQuickAddItem(); }}
+                                             />
+                                         </div>
+                                         <div className="w-20 pb-3 text-center">
+                                             <span className="text-xs font-bold text-slate-500 uppercase">
+                                                 {(() => {
+                                                     if(!quickAddForm.ref_id) return '-';
+                                                     if(quickAddForm.type === 'ingredient') return ingredients.find(i => i.id === quickAddForm.ref_id)?.unit || '-';
+                                                     return recipes.find(r => r.id === quickAddForm.ref_id)?.unit || '-';
+                                                 })()}
+                                             </span>
+                                         </div>
+                                         <button 
+                                            onClick={handleQuickAddItem} 
+                                            disabled={!quickAddForm.ref_id || quickAddForm.qty <= 0}
+                                            className="h-[42px] px-6 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg font-bold shadow-lg shadow-emerald-600/20 disabled:opacity-50 disabled:cursor-not-allowed transition-all flex items-center gap-2"
+                                         >
+                                             <CornerDownLeft size={18}/> Adicionar
+                                         </button>
+                                     </div>
+                                 </div>
+
+                                 {/* --- SCROLLABLE LIST --- */}
+                                 <div className="flex-1 overflow-y-auto max-h-[400px]">
+                                     <table className="w-full text-sm">
+                                        <thead className="bg-white border-b border-slate-100 text-slate-500 sticky top-0 z-0 shadow-sm">
+                                            <tr><th className="p-3 pl-6 text-left w-20">Tipo</th><th className="p-3 text-left w-[40%]">Item</th><th className="p-3 w-24">Qtd</th><th className="p-3 w-20 text-center">Un</th><th className="p-3 text-right">Custo</th><th className="w-16"></th></tr>
+                                        </thead>
+                                        <tbody className="divide-y divide-slate-50">
+                                            {currentRecipe.items.map((item, idx) => {
                                                 let cost = 0; let options = []; if(item.item_type === 'ingredient') { options = ingredients; const ing = ingredients.find(i => i.id === item.ref_id); if(ing) cost = item.qty * ing.cost_per_unit; } else { options = recipes.filter(r => r.type === 'sub_recipe' && r.id !== currentRecipe.id); const sub = options.find((o:any) => o.id === item.ref_id) as Recipe; if(sub) { const subCost = getRecipeCosts(sub).costPerPortion; cost = item.qty * subCost; } }
                                                 const updateItem = (field: keyof RecipeItemDB, val: any) => { const newItems = [...currentRecipe.items]; newItems[idx] = { ...newItems[idx], [field]: val }; if(field === 'ref_id') { const found = options.find((o:any) => o.id === val); if(found) newItems[idx].unit = (found as any).unit; } setCurrentRecipe({...currentRecipe, items: newItems}); setHasUnsavedChanges(true); };
-                                                return (<tr key={idx} className="group hover:bg-slate-50/50"><td className="p-2 pl-6"><Badge color={item.item_type === 'ingredient' ? 'blue' : 'orange'}>{item.item_type === 'ingredient' ? 'INS' : 'BASE'}</Badge></td><td className="p-2"><StyledSelect value={item.ref_id} onChange={e => updateItem('ref_id', e.target.value)}><option value="">Selecione...</option>{options.map((o:any) => <option key={o.id} value={o.id}>{o.name}</option>)}</StyledSelect></td><td className="p-2"><StyledInput type="number" className="text-center font-medium" value={item.qty} onChange={e => updateItem('qty', Number(e.target.value))} /></td><td className="p-2 text-center text-slate-500 text-xs font-bold uppercase">{item.unit}</td><td className="p-2 text-right font-mono text-slate-700 font-medium">{formatCurrency(cost)}</td><td className="p-2 text-center"><button onClick={() => { const newItems = currentRecipe.items.filter((_, i) => i !== idx); setCurrentRecipe({...currentRecipe, items: newItems}); setHasUnsavedChanges(true); }} className="text-slate-300 hover:text-red-500 p-1.5 rounded-full hover:bg-red-50 transition-colors"><X size={16}/></button></td></tr>)
-                                            })}{currentRecipe.items.length === 0 && (<tr><td colSpan={6} className="p-12 text-center text-slate-400 italic">Nenhum item adicionado à receita.<br/><span className="text-xs text-slate-300 mt-2 block">Use Alt+I para Insumo ou Alt+B para Base</span></td></tr>)}</tbody></table></div></Card>
-                             <div className="grid grid-cols-12 gap-6"><Card className="col-span-12 lg:col-span-7 p-6"><h3 className="font-bold text-slate-700 mb-4 flex items-center gap-2 border-b pb-2"><TrendingUp size={18}/> Custos Indiretos & Extras</h3><div className="grid grid-cols-2 gap-4 mb-4"><InputGroup label="Embalagem"><StyledInput type="number" value={currentRecipe.extra_packaging} onChange={e => {setCurrentRecipe({...currentRecipe, extra_packaging: Number(e.target.value)}); setHasUnsavedChanges(true);}} /></InputGroup><InputGroup label={currentRecipe.type === 'drink' ? 'Gelo/Guarnição' : 'Energia/Gás'}><StyledInput type="number" value={currentRecipe.type === 'drink' ? currentRecipe.extra_ice_garnish : currentRecipe.extra_utilities} onChange={e => {setCurrentRecipe({...currentRecipe, [currentRecipe.type === 'drink' ? 'extra_ice_garnish' : 'extra_utilities']: Number(e.target.value)}); setHasUnsavedChanges(true);}} /></InputGroup></div><div className="grid grid-cols-2 gap-4"><InputGroup label="Outros"><StyledInput type="number" value={currentRecipe.extra_other_direct} onChange={e => {setCurrentRecipe({...currentRecipe, extra_other_direct: Number(e.target.value)}); setHasUnsavedChanges(true);}} /></InputGroup><InputGroup label="Rateio Custo Fixo"><StyledInput className="border-amber-200 bg-amber-50 focus:ring-amber-500" type="number" value={currentRecipe.extra_fixed_cost} onChange={e => {setCurrentRecipe({...currentRecipe, extra_fixed_cost: Number(e.target.value)}); setHasUnsavedChanges(true);}} /></InputGroup></div></Card><Card className="col-span-12 lg:col-span-5 flex flex-col overflow-hidden"><div className="bg-slate-50 p-3 border-b border-slate-200 font-bold text-sm text-slate-700">Modo de Preparo</div><textarea className="w-full h-full p-4 resize-none outline-none text-sm text-slate-700 leading-relaxed bg-white" placeholder="Descreva o passo a passo..." value={currentRecipe.instructions} onChange={e => {setCurrentRecipe({...currentRecipe, instructions: e.target.value}); setHasUnsavedChanges(true);}} /></Card></div>
+                                                return (<tr key={idx} className="group hover:bg-slate-50/50"><td className="p-2 pl-6"><Badge color={item.item_type === 'ingredient' ? 'blue' : 'orange'}>{item.item_type === 'ingredient' ? 'INS' : 'BASE'}</Badge></td><td className="p-2 font-medium text-slate-700">{item.item_type === 'ingredient' ? ingredients.find(i => i.id === item.ref_id)?.name : recipes.find(r => r.id === item.ref_id)?.name}</td><td className="p-2"><NumberInput className="text-center font-medium h-8 text-xs" value={item.qty} onChange={v => updateItem('qty', v)} /></td><td className="p-2 text-center text-slate-500 text-xs font-bold uppercase">{item.unit}</td><td className="p-2 text-right font-mono text-slate-700 font-medium">{formatCurrency(cost)}</td><td className="p-2 text-center"><button onClick={() => { const newItems = currentRecipe.items.filter((_, i) => i !== idx); setCurrentRecipe({...currentRecipe, items: newItems}); setHasUnsavedChanges(true); }} className="text-slate-300 hover:text-red-500 p-1.5 rounded-full hover:bg-red-50 transition-colors"><X size={16}/></button></td></tr>)
+                                            })}
+                                            {currentRecipe.items.length === 0 && (<tr><td colSpan={6} className="p-12 text-center text-slate-400 italic">Nenhum item adicionado à receita.<br/><span className="text-xs text-slate-300 mt-2 block">Use o painel acima para adicionar.</span></td></tr>)}
+                                        </tbody>
+                                     </table>
+                                 </div>
+                             </Card>
+                             <div className="grid grid-cols-12 gap-6"><Card className="col-span-12 lg:col-span-7 p-6"><h3 className="font-bold text-slate-700 mb-4 flex items-center gap-2 border-b pb-2"><TrendingUp size={18}/> Custos Indiretos & Extras</h3><div className="grid grid-cols-2 gap-4 mb-4"><InputGroup label="Embalagem"><NumberInput value={currentRecipe.extra_packaging} onChange={v => {setCurrentRecipe({...currentRecipe, extra_packaging: v}); setHasUnsavedChanges(true);}} /></InputGroup><InputGroup label={currentRecipe.type === 'drink' ? 'Gelo/Guarnição' : 'Energia/Gás'}><NumberInput value={currentRecipe.type === 'drink' ? currentRecipe.extra_ice_garnish : currentRecipe.extra_utilities} onChange={v => {setCurrentRecipe({...currentRecipe, [currentRecipe.type === 'drink' ? 'extra_ice_garnish' : 'extra_utilities']: v}); setHasUnsavedChanges(true);}} /></InputGroup></div><div className="grid grid-cols-2 gap-4"><InputGroup label="Outros"><StyledInput type="text" defaultValue={currentRecipe.extra_other_direct} onBlur={(e) => {
+                                        let val = e.target.value;
+                                        if (val.includes('%')) {
+                                            const pct = parseFloat(val.replace('%', '').replace(',', '.'));
+                                            if (!isNaN(pct)) {
+                                                const costs = getRecipeCosts(currentRecipe);
+                                                // Calculate based on total INGREDIENTS cost (insumos)
+                                                const calcVal = costs.itemsCost * (pct / 100);
+                                                setCurrentRecipe({...currentRecipe, extra_other_direct: calcVal});
+                                                e.target.value = calcVal.toFixed(2);
+                                            }
+                                        } else {
+                                            const num = parseInputNumber(val);
+                                            setCurrentRecipe({...currentRecipe, extra_other_direct: num});
+                                        }
+                                        setHasUnsavedChanges(true);
+                                     }} placeholder="Valor ou % (ex: 10%)" /></InputGroup><InputGroup label="Rateio Custo Fixo"><NumberInput className="border-amber-200 bg-amber-50 focus:ring-amber-500" value={currentRecipe.extra_fixed_cost} onChange={v => {setCurrentRecipe({...currentRecipe, extra_fixed_cost: v}); setHasUnsavedChanges(true);}} /></InputGroup></div></Card><Card className="col-span-12 lg:col-span-5 flex flex-col overflow-hidden"><div className="bg-slate-50 p-3 border-b border-slate-200 font-bold text-sm text-slate-700">Modo de Preparo</div><textarea className="w-full h-full p-4 resize-none outline-none text-sm text-slate-700 leading-relaxed bg-white" placeholder="Descreva o passo a passo..." value={currentRecipe.instructions} onChange={e => {setCurrentRecipe({...currentRecipe, instructions: e.target.value}); setHasUnsavedChanges(true);}} /></Card></div>
                         </div>
                         <div className="w-[400px] bg-white border-l border-slate-200 flex flex-col z-10 shadow-xl shadow-slate-200/50">
                              <div className="p-6 border-b border-slate-100 bg-slate-50/50"><h3 className="font-bold text-lg flex items-center gap-2 mb-1 text-slate-800"><DollarSign className="text-emerald-500"/> Precificação</h3><p className="text-xs text-slate-500">Análise financeira em tempo real.</p></div>
@@ -1155,11 +1270,7 @@ export default function App() {
                                      return (<>
                                             <div className="space-y-3 pb-6 border-b border-slate-100"><div className="flex justify-between items-center"><span className="text-sm text-slate-500 font-medium">Custo Produção Total</span> <span className="font-mono text-slate-700">{formatCurrency(costs.totalCost)}</span></div><div className="flex justify-between items-center p-3 bg-slate-50 rounded-lg border border-slate-100"><span className="text-xs font-bold uppercase text-slate-500">Custo / {currentRecipe.type === 'sub_recipe' ? currentRecipe.unit : 'Porção'}</span> <span className="font-bold text-lg text-slate-800">{formatCurrency(costs.costPerPortion)}</span></div></div>
                                             {currentRecipe.type !== 'sub_recipe' && (<div className="space-y-6 animate-in fade-in slide-in-from-right-4 duration-500"><div><label className="text-xs font-bold text-slate-400 uppercase mb-2 block">Método de Precificação</label><div className="flex bg-slate-100 p-1 rounded-lg"><button onClick={() => {setCurrentRecipe({...currentRecipe, pricing_method: 'margin'}); setHasUnsavedChanges(true);}} className={`flex-1 text-xs py-2 rounded-md font-bold transition-all ${currentRecipe.pricing_method === 'margin' ? 'bg-white text-emerald-600 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}>Margem</button><button onClick={() => {setCurrentRecipe({...currentRecipe, pricing_method: 'markup'}); setHasUnsavedChanges(true);}} className={`flex-1 text-xs py-2 rounded-md font-bold transition-all ${currentRecipe.pricing_method === 'markup' ? 'bg-white text-emerald-600 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}>Markup</button></div></div>
-                                                    <div className="flex gap-4"><div className="flex-1"><InputGroup label="Meta %"><StyledInput type="number" className="text-right font-bold" value={currentRecipe.pricing_target} onChange={e => {setCurrentRecipe({...currentRecipe, pricing_target: Number(e.target.value)}); setHasUnsavedChanges(true);}} /></InputGroup></div><div className="flex-1"><InputGroup label="Sugerido"><div className="w-full bg-slate-100 border border-slate-200 text-slate-500 text-sm rounded-lg px-3 py-2.5 text-right font-mono font-bold cursor-not-allowed">{formatCurrency(suggested)}</div></InputGroup></div></div>
-                                                    <div className="pt-6 border-t border-slate-100"><label className="text-xs font-bold text-slate-900 uppercase flex items-center gap-2 mb-2">Preço de Venda <span className="text-[10px] font-normal text-slate-400 bg-slate-100 px-1.5 rounded">FINAL</span></label><div className="flex items-center gap-3 relative"><span className="absolute left-0 top-1 text-emerald-600 font-bold text-2xl">R$</span><input type="number" className="bg-transparent text-4xl font-black text-slate-900 w-full outline-none border-b-2 border-slate-200 focus:border-emerald-500 pl-8 transition-colors pb-1" placeholder="0.00" value={currentRecipe.final_price} onChange={e => {setCurrentRecipe({...currentRecipe, final_price: Number(e.target.value)}); setHasUnsavedChanges(true);}} /></div></div>
-                                                    <div className="bg-slate-50 p-4 rounded-xl border border-slate-100 space-y-2"><div className="flex justify-between text-xs text-slate-500 items-center"><span>Impostos ({currentRecipe.taxes_pct}%)</span><input type="number" className="w-12 bg-white border rounded px-1 text-right text-xs" value={currentRecipe.taxes_pct} onChange={e => setCurrentRecipe({...currentRecipe, taxes_pct: Number(e.target.value)})}/></div><div className="flex justify-between text-xs text-slate-500 items-center"><span>Taxas Cartão ({currentRecipe.card_fee_pct}%)</span><input type="number" className="w-12 bg-white border rounded px-1 text-right text-xs" value={currentRecipe.card_fee_pct} onChange={e => setCurrentRecipe({...currentRecipe, card_fee_pct: Number(e.target.value)})}/></div><div className="pt-2 border-t border-slate-200 flex justify-between text-xs font-bold text-slate-700"><span>Receita Líquida</span><span>{formatCurrency(costs.price - costs.tax - (costs.price * (Number(currentRecipe.card_fee_pct)/100)))}</span></div></div>
+                                                    <div className="flex gap-4"><div className="flex-1"><InputGroup label="Meta %"><NumberInput className="text-right font-bold" value={currentRecipe.pricing_target} onChange={v => {setCurrentRecipe({...currentRecipe, pricing_target: v}); setHasUnsavedChanges(true);}} /></InputGroup></div><div className="flex-1"><InputGroup label="Sugerido"><div className="w-full bg-slate-100 border border-slate-200 text-slate-500 text-sm rounded-lg px-3 py-2.5 text-right font-mono font-bold cursor-not-allowed">{formatCurrency(suggested)}</div></InputGroup></div></div>
+                                                    <div className="pt-6 border-t border-slate-100"><label className="text-xs font-bold text-slate-900 uppercase flex items-center gap-2 mb-2">Preço de Venda <span className="text-[10px] font-normal text-slate-400 bg-slate-100 px-1.5 rounded">FINAL</span></label><div className="flex items-center gap-3 relative"><span className="absolute left-0 top-1 text-emerald-600 font-bold text-2xl">R$</span><NumberInput className="bg-transparent text-4xl font-black text-slate-900 w-full outline-none border-b-2 border-slate-200 focus:border-emerald-500 pl-8 transition-colors pb-1" placeholder="0,00" value={currentRecipe.final_price} onChange={v => {setCurrentRecipe({...currentRecipe, final_price: v}); setHasUnsavedChanges(true);}} /></div></div>
+                                                    <div className="bg-slate-50 p-4 rounded-xl border border-slate-100 space-y-2"><div className="flex justify-between text-xs text-slate-500 items-center"><span>Impostos ({currentRecipe.taxes_pct}%)</span><NumberInput className="w-12 bg-white border rounded px-1 text-right text-xs" value={currentRecipe.taxes_pct} onChange={v => setCurrentRecipe({...currentRecipe, taxes_pct: v})}/></div><div className="flex justify-between text-xs text-slate-500 items-center"><span>Taxas Cartão ({currentRecipe.card_fee_pct}%)</span><NumberInput className="w-12 bg-white border rounded px-1 text-right text-xs" value={currentRecipe.card_fee_pct} onChange={v => setCurrentRecipe({...currentRecipe, card_fee_pct: v})}/></div><div className="pt-2 border-t border-slate-200 flex justify-between text-xs font-bold text-slate-700"><span>Receita Líquida</span><span>{formatCurrency(costs.price - costs.tax - (costs.price * (Number(currentRecipe.card_fee_pct)/100)))}</span></div></div>
                                                     <div className="space-y-4"><div className="flex justify-between items-end"><label className="text-xs font-bold text-slate-400 uppercase">Lucro Líquido</label><span className={`text-2xl font-bold ${costs.profit > 0 ? 'text-emerald-600' : 'text-red-500'}`}>{formatCurrency(costs.profit)}</span></div><div><div className="flex justify-between items-end mb-2"><label className="text-xs font-bold text-slate-400 uppercase">Margem Real</label><span className={`text-xl font-bold ${costs.margin >= 20 ? 'text-emerald-600' : costs.margin > 0 ? 'text-orange-500' : 'text-red-500'}`}>{costs.margin.toFixed(1)}%</span></div><div className="w-full bg-slate-100 h-3 rounded-full overflow-hidden shadow-inner"><div className={`h-full transition-all duration-500 ${costs.margin >= 20 ? 'bg-emerald-500' : costs.margin > 0 ? 'bg-orange-400' : 'bg-red-500'}`} style={{width: `${Math.min(Math.max(costs.margin, 0), 100)}%`}}></div></div><p className="text-[10px] text-slate-400 mt-1 text-center">Ideal: &gt; 25%</p></div></div></div>)}</> )})()}</div></div></div></div>)}
-        </main>
-    </div>
-  );
-}
