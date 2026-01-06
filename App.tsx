@@ -3,7 +3,7 @@ import {
   Plus, Trash2, Save, FileText, DollarSign, 
   ChefHat, ArrowRight, Printer, History,
   AlertTriangle, Scale, Edit2, TrendingUp,
-  BarChart2, Activity, X, Loader2, FileSpreadsheet, Download, Wine, Layers, ChevronLeft, Settings, ToggleLeft, ToggleRight, Target, Search, MoreHorizontal, CheckSquare, Square, AlertCircle, Clipboard, PieChart, CornerDownLeft, Users, Calculator, Lock
+  BarChart2, Activity, X, Loader2, FileSpreadsheet, Download, Wine, Layers, ChevronLeft, Settings, ToggleLeft, ToggleRight, Target, Search, MoreHorizontal, CheckSquare, Square, Clipboard, PieChart, CornerDownLeft, Users, Calculator, Lock
 } from 'lucide-react';
 import { 
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip as ReTooltip, ResponsiveContainer, PieChart as RePieChart, Pie, Cell, Legend
