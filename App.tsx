@@ -3,7 +3,7 @@ import {
   Plus, Trash2, Save, FileText, DollarSign, 
   ChefHat, ArrowRight, Printer, History,
   AlertTriangle, Scale, Edit2, TrendingUp,
-  BarChart2, Activity, X, Loader2, FileSpreadsheet, Download, Wine, Layers, ChevronLeft, Settings, ToggleLeft, ToggleRight, Target, Search, MoreHorizontal, CheckSquare, Square, AlertCircle, Clipboard, PieChart, CornerDownLeft
+  BarChart2, Activity, X, Loader2, FileSpreadsheet, Download, Wine, Layers, ChevronLeft, Settings, ToggleLeft, ToggleRight, Target, Search, MoreHorizontal, CheckSquare, Square, AlertCircle, Clipboard, PieChart, CornerDownLeft, Users, Calculator, Lock
 } from 'lucide-react';
 import { 
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip as ReTooltip, ResponsiveContainer, PieChart as RePieChart, Pie, Cell, Legend
@@ -11,7 +11,7 @@ import {
 
 import { supabase } from './services/supabaseClient';
 import { Login } from './components/Login';
-import type { FixedExpense, Ingredient, Recipe, RecipeItemDB } from './types';
+import type { FixedExpense, Ingredient, Recipe, RecipeItemDB, UserRole, TeamMember } from './types';
 
 // --- UTILS ---
 const UNITS = ['kg', 'g', 'L', 'ml', 'un', 'maço', 'cx', 'pct'];
@@ -89,14 +89,16 @@ const StyledInput = (props: React.InputHTMLAttributes<HTMLInputElement>) => (
   />
 );
 
-const StyledSelect = (props: React.SelectHTMLAttributes<HTMLSelectElement>) => (
+const StyledSelect = React.forwardRef<HTMLSelectElement, React.SelectHTMLAttributes<HTMLSelectElement>>((props, ref) => (
   <select 
     {...props}
+    ref={ref}
     className={`w-full bg-slate-50 border border-slate-200 text-slate-900 text-sm rounded-lg px-3 py-2.5 focus:ring-2 focus:ring-emerald-500 focus:border-transparent outline-none transition-all cursor-pointer ${props.className || ''}`}
   >
     {props.children}
   </select>
-);
+));
+StyledSelect.displayName = 'StyledSelect';
 
 const Badge = ({ children, color = "slate" }: { children?: React.ReactNode, color?: "slate" | "emerald" | "red" | "blue" | "orange" | "purple" | "yellow" }) => {
   const colors = {
@@ -359,11 +361,16 @@ export default function App() {
   const [view, setView] = useState('dashboard');
   const [loading, setLoading] = useState(true);
 
+  // Role Management
+  const [userRole, setUserRole] = useState<UserRole>('admin');
+  const [effectiveUserId, setEffectiveUserId] = useState<string | null>(null);
+
   // Data State
   const [ingredients, setIngredients] = useState<Ingredient[]>([]);
   const [recipes, setRecipes] = useState<Recipe[]>([]);
   const [expenses, setExpenses] = useState<FixedExpense[]>([]);
   const [categories, setCategories] = useState<string[]>([]);
+  const [teamMembers, setTeamMembers] = useState<TeamMember[]>([]);
   
   // Selection State
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
@@ -390,6 +397,10 @@ export default function App() {
   const [isImportReviewStep, setIsImportReviewStep] = useState(false);
   const [isProcessingImport, setIsProcessingImport] = useState(false);
 
+  // Yield Calculator State
+  const [showYieldCalc, setShowYieldCalc] = useState(false);
+  const [yieldCalcData, setYieldCalcData] = useState({ gross: '', net: '' });
+
   // Delete Modal State
   const [deleteModal, setDeleteModal] = useState<DeleteState>({ open: false, title: '', message: '', isBulk: false, ids: [], type: 'ingredients' });
   const [isDeleting, setIsDeleting] = useState(false);
@@ -399,21 +410,60 @@ export default function App() {
   const [ingForm, setIngForm] = useState<Partial<Ingredient>>({ unit: 'kg', package_qty: 1, yield_factor: 100 });
   const [newCatInput, setNewCatInput] = useState("");
   const [searchTerm, setSearchTerm] = useState("");
+  const [inviteEmail, setInviteEmail] = useState("");
+
+  // --- HELPER COMPONENT FOR PERMISSIONS ---
+  const Restricted = ({ children, fallback = null }: { children: React.ReactNode, fallback?: React.ReactNode }) => {
+      return userRole === 'admin' ? <>{children}</> : <>{fallback}</>;
+  };
 
   // --- INITIALIZATION ---
   useEffect(() => {
     supabase.auth.getSession().then(({ data: { session } }) => {
       setSession(session);
-      setLoading(false);
+      if(session) checkUserRole(session);
+      else setLoading(false);
     });
 
     const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
       setSession(session);
-      setLoading(false);
+      if(session) checkUserRole(session);
+      else setLoading(false);
     });
 
     return () => subscription.unsubscribe();
   }, []);
+
+  const checkUserRole = async (sessionData: any) => {
+      const userId = sessionData.user.id;
+      const userEmail = sessionData.user.email;
+
+      // 1. First attempt: Check if user is linked by ID (already established)
+      let { data: teamData } = await supabase.from('team_members').select('*').eq('member_user_id', userId).single();
+      
+      // 2. Second attempt: Check if there is a PENDING invite by email
+      if (!teamData && userEmail) {
+          const { data: pendingInvite } = await supabase.from('team_members').select('*').eq('member_email', userEmail).single();
+          
+          if (pendingInvite) {
+              // Found a pending invite! Claim it by updating the member_user_id
+              const { error } = await supabase.from('team_members').update({ member_user_id: userId }).eq('id', pendingInvite.id);
+              if (!error) {
+                  teamData = pendingInvite; // treat as found
+              }
+          }
+      }
+
+      if (teamData) {
+          setUserRole('kitchen_manager');
+          setEffectiveUserId(teamData.owner_user_id);
+          setView('ingredients'); // Redirect kitchen manager to ingredients
+      } else {
+          setUserRole('admin');
+          setEffectiveUserId(userId);
+      }
+      setLoading(false);
+  };
 
   // --- KEYBOARD SHORTCUTS ---
   useEffect(() => {
@@ -441,33 +491,47 @@ export default function App() {
 
   // ... (Data Fetching, Delete, Selection, Calculation Logic same as before) ...
   const fetchData = async () => {
-    if (!session?.user) return;
-    const { data: ingData } = await supabase.from('ingredients').select('*').order('name');
+    if (!effectiveUserId) return;
+    
+    // Ingredients
+    const { data: ingData } = await supabase.from('ingredients').select('*').eq('user_id', effectiveUserId).order('name');
     if(ingData) setIngredients(ingData);
-    const { data: recData } = await supabase.from('recipes').select('*, recipe_items(*)').order('last_update', { ascending: false });
+    
+    // Recipes
+    const { data: recData } = await supabase.from('recipes').select('*, recipe_items(*)').eq('user_id', effectiveUserId).order('last_update', { ascending: false });
     if(recData) {
         const mappedRecipes = recData.map(r => ({ ...r, items: r.recipe_items || [] }));
         setRecipes(mappedRecipes);
     }
-    const { data: expData } = await supabase.from('fixed_expenses').select('*').order('year', {ascending:false}).order('month', {ascending:false});
-    if(expData) setExpenses(expData);
-    const { data: catData } = await supabase.from('categories').select('*').order('name');
+    
+    // Categories
+    const { data: catData } = await supabase.from('categories').select('*').eq('user_id', effectiveUserId).order('name');
     if(catData) setCategories(catData.map(c => c.name));
     else setCategories(['Prato Principal', 'Entrada', 'Sobremesa', 'Drink', 'Bebida Não Alcoólica', 'Base/Molho']);
+
+    // Admin Only Data
+    if (userRole === 'admin') {
+        const { data: expData } = await supabase.from('fixed_expenses').select('*').eq('user_id', effectiveUserId).order('year', {ascending:false}).order('month', {ascending:false});
+        if(expData) setExpenses(expData);
+
+        const { data: teamData } = await supabase.from('team_members').select('*').eq('owner_user_id', effectiveUserId);
+        if(teamData) setTeamMembers(teamData);
+    }
   };
 
   useEffect(() => {
-    if (session) {
+    if (effectiveUserId) {
       fetchData();
       const channels = supabase.channel('custom-all-channel')
         .on('postgres_changes', { event: '*', schema: 'public', table: 'ingredients' }, () => fetchData())
         .on('postgres_changes', { event: '*', schema: 'public', table: 'recipes' }, () => fetchData())
         .on('postgres_changes', { event: '*', schema: 'public', table: 'fixed_expenses' }, () => fetchData())
         .on('postgres_changes', { event: '*', schema: 'public', table: 'categories' }, () => fetchData())
+        .on('postgres_changes', { event: '*', schema: 'public', table: 'team_members' }, () => fetchData())
         .subscribe();
       return () => { supabase.removeChannel(channels); };
     }
-  }, [session]);
+  }, [effectiveUserId, userRole]);
 
   const toggleSelection = (id: string) => {
       setSelectedIds(prev => {
@@ -548,7 +612,7 @@ export default function App() {
         package_qty: Number(ingForm.package_qty),
         yield_factor: yf / 100, 
         cost_per_unit: cost,
-        user_id: session.user.id
+        user_id: effectiveUserId
     };
     if (ingForm.id) {
         await supabase.from('ingredients').update(payload).eq('id', ingForm.id);
@@ -558,6 +622,38 @@ export default function App() {
         if(data) setIngredients(prev => [...prev, data].sort((a,b) => a.name.localeCompare(b.name)));
     }
     setIngForm({ unit: 'kg', package_qty: 1, yield_factor: 100 });
+  };
+
+  const handleCalculateYield = () => {
+      const gross = parseInputNumber(yieldCalcData.gross);
+      const net = parseInputNumber(yieldCalcData.net);
+      if (gross > 0 && net > 0) {
+          const factor = (net / gross) * 100;
+          setIngForm({ ...ingForm, yield_factor: Math.min(parseFloat(factor.toFixed(2)), 100) });
+          setShowYieldCalc(false);
+          setYieldCalcData({ gross: '', net: '' });
+      }
+  };
+
+  const handleInviteUser = async () => {
+      if (!inviteEmail) return;
+      // In a real app, this would send an email. For now, we just create the record.
+      // We check if a user with this email exists in Supabase Auth (mock check for this context)
+      // Since we can't query auth.users, we just insert into team_members pending.
+      
+      const { error } = await supabase.from('team_members').insert({
+          owner_user_id: session.user.id,
+          member_email: inviteEmail,
+          role: 'kitchen_manager',
+          member_user_id: null // Pending until they sign up/login matches
+      });
+
+      if (error) alert('Erro ao convidar: ' + error.message);
+      else {
+          alert('Convite registrado! Peça para o usuário criar uma conta com este e-mail para ter acesso imediato.');
+          setInviteEmail("");
+          fetchData();
+      }
   };
 
   const parseImportData = (text: string) => {
@@ -625,7 +721,7 @@ export default function App() {
       setIsProcessingImport(true);
       const validItems = importPreviewData.filter(i => i.isValid);
       const payload = validItems.map(i => ({
-          user_id: session.user.id,
+          user_id: effectiveUserId,
           name: i.name,
           unit: i.unit,
           price: i.price,
@@ -654,7 +750,7 @@ export default function App() {
       const isDrink = type === 'drink';
       setCurrentRecipe({
           id: null,
-          user_id: session.user.id,
+          user_id: effectiveUserId!,
           type: type,
           name: '',
           category: isDrink ? 'Drink' : 'Prato Principal',
@@ -684,7 +780,7 @@ export default function App() {
           } = (currentRecipe as any);
           const recipePayload: any = { ...rest };
           recipePayload.last_update = new Date().toISOString();
-          recipePayload.user_id = session.user.id;
+          recipePayload.user_id = effectiveUserId;
           
           if (id) {
              recipePayload.id = id;
@@ -722,7 +818,7 @@ export default function App() {
           if (currentRecipe.items && currentRecipe.items.length > 0) {
               const itemsPayload = currentRecipe.items.map((item, idx) => ({
                   recipe_id: recipeId,
-                  user_id: session.user.id,
+                  user_id: effectiveUserId,
                   item_type: item.item_type,
                   ref_id: item.ref_id,
                   qty: Number(item.qty),
@@ -760,7 +856,7 @@ export default function App() {
               alert("Categoria já existe.");
               return;
           }
-          const { error } = await supabase.from('categories').insert({ user_id: session.user.id, name });
+          const { error } = await supabase.from('categories').insert({ user_id: effectiveUserId, name });
           if (!error) {
               const newCats = [...categories, name].sort();
               setCategories(newCats);
@@ -859,6 +955,26 @@ export default function App() {
   return (
     <div className="flex h-screen w-full bg-slate-50 overflow-hidden font-sans text-slate-900">
         {/* ... (Modals remain the same) ... */}
+        {showYieldCalc && (
+            <div className="fixed inset-0 z-[110] bg-slate-900/60 flex items-center justify-center p-4 backdrop-blur-sm">
+                <div className="bg-white p-6 rounded-xl shadow-2xl w-full max-w-sm animate-in zoom-in-95">
+                    <h3 className="text-lg font-bold text-slate-800 mb-4 flex items-center gap-2"><Calculator className="text-emerald-600"/> Calculadora de Rendimento</h3>
+                    <div className="space-y-4">
+                        <InputGroup label="Peso Bruto (Suja/Com Casca)">
+                            <StyledInput autoFocus placeholder="Ex: 1000g" inputMode="decimal" value={yieldCalcData.gross} onChange={e => setYieldCalcData({...yieldCalcData, gross: e.target.value})} />
+                        </InputGroup>
+                        <InputGroup label="Peso Líquido (Limpa)">
+                            <StyledInput placeholder="Ex: 850g" inputMode="decimal" value={yieldCalcData.net} onChange={e => setYieldCalcData({...yieldCalcData, net: e.target.value})} />
+                        </InputGroup>
+                    </div>
+                    <div className="mt-6 flex gap-3">
+                        <button onClick={() => setShowYieldCalc(false)} className="flex-1 py-2 rounded-lg border border-slate-200 text-slate-600 font-bold hover:bg-slate-50">Cancelar</button>
+                        <button onClick={handleCalculateYield} className="flex-1 py-2 rounded-lg bg-emerald-600 text-white font-bold hover:bg-emerald-700">Aplicar %</button>
+                    </div>
+                </div>
+            </div>
+        )}
+
         {showImportModal && (
             <div className="fixed inset-0 z-[100] bg-slate-900/50 flex items-center justify-center p-4 backdrop-blur-sm">
                 <div className="bg-white rounded-xl shadow-2xl w-full max-w-4xl max-h-[90vh] flex flex-col overflow-hidden animate-in fade-in zoom-in-95 duration-200">
@@ -996,20 +1112,34 @@ export default function App() {
                 {isSidebarOpen ? (<div className="flex items-center gap-2 animate-in fade-in duration-300"><div className="bg-emerald-600 p-1.5 rounded-lg"><ChefHat className="text-white" size={20}/></div><span className="text-white font-bold text-lg tracking-tight">HUBChef</span></div>) : (<div className="bg-emerald-600 p-2 rounded-lg"><ChefHat className="text-white" size={24}/></div>)}
             </div>
             <div className={`flex-1 px-3 space-y-1 overflow-y-auto ${!isSidebarOpen ? 'scrollbar-hide' : 'custom-scrollbar'}`}>
-                <NavButton icon={Activity} label="Dashboard" target="dashboard" />
-                <NavButton icon={BarChart2} label="Relatórios" target="reports" />
-                <div className="my-4 border-t border-slate-800/50 mx-2"></div>
+                <Restricted>
+                    <NavButton icon={Activity} label="Dashboard" target="dashboard" />
+                    <NavButton icon={BarChart2} label="Relatórios" target="reports" />
+                    <div className="my-4 border-t border-slate-800/50 mx-2"></div>
+                </Restricted>
                 {isSidebarOpen && <div className="px-4 text-[10px] font-bold text-slate-500 uppercase tracking-widest mb-2">Gestão</div>}
                 <NavButton icon={ArrowRight} label="Insumos" target="ingredients" />
                 <NavButton icon={Layers} label="Bases" target="sub_recipes" />
                 <NavButton icon={FileText} label="Fichas Técnicas" target="recipes" />
                 <NavButton icon={Wine} label="Drinks" target="drinks" />
-                <div className="my-4 border-t border-slate-800/50 mx-2"></div>
-                {isSidebarOpen && <div className="px-4 text-[10px] font-bold text-slate-500 uppercase tracking-widest mb-2">Financeiro</div>}
-                <NavButton icon={TrendingUp} label="Despesas Fixas" target="fixed-expenses" />
-                <NavButton icon={Settings} label="Categorias" target="categories" />
+                <Restricted>
+                    <div className="my-4 border-t border-slate-800/50 mx-2"></div>
+                    {isSidebarOpen && <div className="px-4 text-[10px] font-bold text-slate-500 uppercase tracking-widest mb-2">Financeiro</div>}
+                    <NavButton icon={TrendingUp} label="Despesas Fixas" target="fixed-expenses" />
+                    <NavButton icon={Settings} label="Configurações" target="settings" />
+                </Restricted>
             </div>
-            <div className="p-4 border-t border-slate-800"><button onClick={() => supabase.auth.signOut()} className={`flex items-center gap-3 text-slate-400 hover:text-white w-full p-2 rounded-lg hover:bg-slate-800 transition-colors ${!isSidebarOpen && 'justify-center'}`}><ToggleLeft size={20}/>{isSidebarOpen && <span>Sair</span>}</button></div>
+            <div className="p-4 border-t border-slate-800">
+                {userRole === 'kitchen_manager' && isSidebarOpen && (
+                    <div className="mb-4 bg-slate-800 p-3 rounded-lg border border-slate-700">
+                        <div className="flex items-center gap-2 text-white font-bold text-xs mb-1">
+                            <Users size={14} className="text-orange-400"/> Gerente Cozinha
+                        </div>
+                        <p className="text-[10px] text-slate-400">Modo Restrito</p>
+                    </div>
+                )}
+                <button onClick={() => supabase.auth.signOut()} className={`flex items-center gap-3 text-slate-400 hover:text-white w-full p-2 rounded-lg hover:bg-slate-800 transition-colors ${!isSidebarOpen && 'justify-center'}`}><ToggleLeft size={20}/>{isSidebarOpen && <span>Sair</span>}</button>
+            </div>
         </nav>
 
         <main className="flex-1 flex flex-col h-full w-full relative overflow-hidden">
@@ -1039,7 +1169,12 @@ export default function App() {
                                 </div>
                                 <div className="grid grid-cols-2 gap-4">
                                     <InputGroup label="Qtd Embalagem"><StyledInput type="text" inputMode="decimal" placeholder="1" value={ingForm.package_qty !== undefined ? ingForm.package_qty.toString().replace('.', ',') : ''} onChange={e => setIngForm({...ingForm, package_qty: parseInputNumber(e.target.value)})} /></InputGroup>
-                                    <InputGroup label="Rendimento %"><StyledInput type="text" inputMode="decimal" placeholder="100" value={ingForm.yield_factor !== undefined ? ingForm.yield_factor.toString().replace('.', ',') : ''} onChange={e => setIngForm({...ingForm, yield_factor: parseInputNumber(e.target.value)})} /></InputGroup>
+                                    <InputGroup label="Rendimento %">
+                                        <div className="flex gap-2">
+                                            <StyledInput type="text" inputMode="decimal" placeholder="100" value={ingForm.yield_factor !== undefined ? ingForm.yield_factor.toString().replace('.', ',') : ''} onChange={e => setIngForm({...ingForm, yield_factor: parseInputNumber(e.target.value)})} />
+                                            <button onClick={() => setShowYieldCalc(true)} className="px-3 bg-slate-100 hover:bg-slate-200 rounded-lg text-slate-500" title="Calculadora de Rendimento"><Calculator size={18}/></button>
+                                        </div>
+                                    </InputGroup>
                                 </div>
                             </div>
                             <div className="mt-8 bg-slate-50 p-4 rounded-lg border border-slate-200">
@@ -1084,7 +1219,11 @@ export default function App() {
                                         {r.status === 'inactive' && <div className="absolute top-0 right-0 bg-slate-100 text-slate-500 text-[10px] font-bold px-3 py-1 rounded-bl-lg">INATIVO</div>}
                                         <div className="mb-4"><span className="text-[10px] font-bold uppercase tracking-wider text-slate-400 mb-1 block">{r.category}</span><h3 className="font-bold text-lg text-slate-800 leading-tight group-hover:text-emerald-700 transition-colors">{r.name}</h3></div>
                                         <div className="flex items-center gap-4 text-xs text-slate-500 font-medium mb-6"><span className="flex items-center gap-1 bg-slate-50 px-2 py-1 rounded"><History size={12}/> v{r.version}</span><span className="flex items-center gap-1 bg-slate-50 px-2 py-1 rounded"><Scale size={12}/> {r.portions} {isSub ? r.unit : 'un'}</span></div>
-                                        <div className="mt-auto pt-4 border-t border-slate-100">{isSub ? (<div className="flex justify-between items-center"><span className="text-xs font-bold text-orange-600 uppercase bg-orange-50 px-2 py-1 rounded">Custo / {r.unit}</span><span className="font-mono font-bold text-slate-700">{formatCurrency(costs.costPerPortion)}</span></div>) : (<div className="flex justify-between items-end"><div><p className="text-[10px] text-slate-400 uppercase font-bold">Preço Venda</p><p className="font-bold text-slate-800 text-lg">{formatCurrency(r.final_price)}</p></div><div className="text-right"><p className="text-[10px] text-slate-400 uppercase font-bold">Lucro</p><p className={`font-mono font-bold ${costs.profit > 0 ? 'text-emerald-600' : 'text-red-500'}`}>{formatCurrency(costs.profit)}</p></div></div>)}</div>
+                                        <div className="mt-auto pt-4 border-t border-slate-100">{isSub ? (<div className="flex justify-between items-center"><span className="text-xs font-bold text-orange-600 uppercase bg-orange-50 px-2 py-1 rounded">Custo / {r.unit}</span><span className="font-mono font-bold text-slate-700">{formatCurrency(costs.costPerPortion)}</span></div>) : (<div className="flex justify-between items-end">
+                                            <Restricted fallback={<div className="bg-slate-100 px-2 py-1 rounded text-[10px] font-bold text-slate-400 flex items-center gap-1"><Lock size={10}/> CUSTOS OCULTOS</div>}>
+                                                <div><p className="text-[10px] text-slate-400 uppercase font-bold">Preço Venda</p><p className="font-bold text-slate-800 text-lg">{formatCurrency(r.final_price)}</p></div><div className="text-right"><p className="text-[10px] text-slate-400 uppercase font-bold">Lucro</p><p className={`font-mono font-bold ${costs.profit > 0 ? 'text-emerald-600' : 'text-red-500'}`}>{formatCurrency(costs.profit)}</p></div>
+                                            </Restricted>
+                                        </div>)}</div>
                                      </div>
                                 </Card>)
                         })}
@@ -1116,11 +1255,41 @@ export default function App() {
 
             {view === 'fixed-expenses' && (
                 <div className="p-6 md:p-10 w-full max-w-5xl mx-auto"><h1 className="text-3xl font-bold text-slate-900 mb-8 flex items-center gap-3"><TrendingUp className="text-amber-500"/> Despesas Fixas</h1>
-                    <Card className="p-6 mb-8 bg-slate-50 border-amber-200"><h3 className="font-bold text-slate-800 mb-4 flex items-center gap-2">Registrar Novo Período</h3><div className="flex flex-col md:flex-row gap-4 items-end"><InputGroup label="Mês" className="flex-1"><StyledSelect value={newExpense.month} onChange={e => setNewExpense({...newExpense, month: e.target.value})}>{Array.from({length:12}, (_,i) => <option key={i+1} value={i+1}>{formatMonth(i+1)}</option>)}</StyledSelect></InputGroup><InputGroup label="Ano" className="w-24"><StyledInput type="text" inputMode="numeric" value={newExpense.year} onChange={e => setNewExpense({...newExpense, year: e.target.value})} /></InputGroup><InputGroup label="Total Despesas (R$)" className="flex-1"><StyledInput type="text" inputMode="decimal" value={newExpense.total} onChange={e => setNewExpense({...newExpense, total: e.target.value})} /></InputGroup><InputGroup label="Pratos Vendidos" className="flex-1"><StyledInput type="text" inputMode="decimal" value={newExpense.dishes} onChange={e => setNewExpense({...newExpense, dishes: e.target.value})} /></InputGroup><button onClick={async () => { const cost = parseInputNumber(newExpense.total) / parseInputNumber(newExpense.dishes); await supabase.from('fixed_expenses').insert({ user_id: session.user.id, month: Number(newExpense.month), year: Number(newExpense.year), total_expenses: parseInputNumber(newExpense.total), total_dishes_sold: parseInputNumber(newExpense.dishes), cost_per_dish: cost }); setNewExpense({...newExpense, total: '', dishes: ''}); }} className="bg-amber-500 hover:bg-amber-600 text-white px-6 py-2.5 rounded-lg font-bold shadow-lg shadow-amber-500/20 mb-[1px]">Salvar</button></div></Card>
+                    <Card className="p-6 mb-8 bg-slate-50 border-amber-200"><h3 className="font-bold text-slate-800 mb-4 flex items-center gap-2">Registrar Novo Período</h3><div className="flex flex-col md:flex-row gap-4 items-end"><InputGroup label="Mês" className="flex-1"><StyledSelect value={newExpense.month} onChange={e => setNewExpense({...newExpense, month: e.target.value})}>{Array.from({length:12}, (_,i) => <option key={i+1} value={i+1}>{formatMonth(i+1)}</option>)}</StyledSelect></InputGroup><InputGroup label="Ano" className="w-24"><StyledInput type="text" inputMode="numeric" value={newExpense.year} onChange={e => setNewExpense({...newExpense, year: e.target.value})} /></InputGroup><InputGroup label="Total Despesas (R$)" className="flex-1"><StyledInput type="text" inputMode="decimal" value={newExpense.total} onChange={e => setNewExpense({...newExpense, total: e.target.value})} /></InputGroup><InputGroup label="Pratos Vendidos" className="flex-1"><StyledInput type="text" inputMode="decimal" value={newExpense.dishes} onChange={e => setNewExpense({...newExpense, dishes: e.target.value})} /></InputGroup><button onClick={async () => { const cost = parseInputNumber(newExpense.total) / parseInputNumber(newExpense.dishes); await supabase.from('fixed_expenses').insert({ user_id: effectiveUserId, month: Number(newExpense.month), year: Number(newExpense.year), total_expenses: parseInputNumber(newExpense.total), total_dishes_sold: parseInputNumber(newExpense.dishes), cost_per_dish: cost }); setNewExpense({...newExpense, total: '', dishes: ''}); }} className="bg-amber-500 hover:bg-amber-600 text-white px-6 py-2.5 rounded-lg font-bold shadow-lg shadow-amber-500/20 mb-[1px]">Salvar</button></div></Card>
                     <Card><table className="w-full text-left text-sm"><thead className="bg-slate-50 text-slate-500 uppercase text-xs border-b"><tr><th className="p-4 pl-6">Período</th><th className="p-4 text-right">Despesas Totais</th><th className="p-4 text-right">Vendas</th><th className="p-4 text-right">Custo Fixo / Prato</th><th className="p-4"></th></tr></thead><tbody className="divide-y divide-slate-100">{expenses.map(exp => (<tr key={exp.id} className="hover:bg-slate-50"><td className="p-4 pl-6 font-bold text-slate-700">{formatMonth(exp.month)} <span className="text-slate-400 font-normal">/ {exp.year}</span></td><td className="p-4 text-right">{formatCurrency(exp.total_expenses)}</td><td className="p-4 text-right">{exp.total_dishes_sold}</td><td className="p-4 text-right text-amber-600 font-bold bg-amber-50/50">{formatCurrency(exp.cost_per_dish)}</td><td className="p-4 text-center"><button onClick={() => confirmDelete('expenses', [exp.id])} className="text-slate-300 hover:text-red-500"><Trash2 size={16}/></button></td></tr>))}</tbody></table></Card></div>)}
 
-            {view === 'categories' && (<div className="p-10 max-w-2xl mx-auto"><h1 className="text-3xl font-bold text-slate-900 mb-8">Gerenciar Categorias</h1><Card className="p-6 mb-6"><div className="flex gap-4"><StyledInput placeholder="Nova Categoria (ex: Entradas Frias)" value={newCatInput} onChange={e => setNewCatInput(e.target.value)} /><button onClick={async () => { if(newCatInput) { await supabase.from('categories').insert({user_id: session.user.id, name: newCatInput}); setNewCatInput(''); }}} className="bg-slate-900 text-white px-6 rounded-lg font-bold">Adicionar</button></div></Card><div className="grid grid-cols-1 md:grid-cols-2 gap-3">{categories.map(cat => (<Card key={cat} className="p-4 flex justify-between items-center group"><span className="font-medium text-slate-700">{cat}</span><button onClick={() => confirmDelete('categories', [cat])} className="text-slate-300 hover:text-red-500 opacity-0 group-hover:opacity-100 transition-opacity"><Trash2 size={16}/></button></Card>))}</div></div>)}
+            {view === 'categories' && (<div className="p-10 max-w-2xl mx-auto"><h1 className="text-3xl font-bold text-slate-900 mb-8">Gerenciar Categorias</h1><Card className="p-6 mb-6"><div className="flex gap-4"><StyledInput placeholder="Nova Categoria (ex: Entradas Frias)" value={newCatInput} onChange={e => setNewCatInput(e.target.value)} /><button onClick={async () => { if(newCatInput) { await supabase.from('categories').insert({user_id: effectiveUserId, name: newCatInput}); setNewCatInput(''); }}} className="bg-slate-900 text-white px-6 rounded-lg font-bold">Adicionar</button></div></Card><div className="grid grid-cols-1 md:grid-cols-2 gap-3">{categories.map(cat => (<Card key={cat} className="p-4 flex justify-between items-center group"><span className="font-medium text-slate-700">{cat}</span><button onClick={() => confirmDelete('categories', [cat])} className="text-slate-300 hover:text-red-500 opacity-0 group-hover:opacity-100 transition-opacity"><Trash2 size={16}/></button></Card>))}</div></div>)}
             
+            {view === 'settings' && userRole === 'admin' && (
+                <div className="p-10 max-w-2xl mx-auto">
+                    <h1 className="text-3xl font-bold text-slate-900 mb-8 flex items-center gap-3"><Settings className="text-slate-600"/> Configurações</h1>
+                    <Card className="p-6 mb-8">
+                        <h3 className="font-bold text-slate-800 mb-4 flex items-center gap-2"><Users className="text-emerald-600"/> Equipe & Acessos</h3>
+                        <p className="text-sm text-slate-500 mb-4">Convide gerentes de cozinha para acessar fichas técnicas e insumos sem ver dados financeiros sensíveis.</p>
+                        <div className="flex gap-3 items-end mb-6">
+                            <InputGroup label="Email do Gerente" className="flex-1">
+                                <StyledInput placeholder="email@exemplo.com" value={inviteEmail} onChange={e => setInviteEmail(e.target.value)} />
+                            </InputGroup>
+                            <button onClick={handleInviteUser} className="bg-slate-900 text-white px-4 py-2.5 rounded-lg font-bold hover:bg-slate-800">Convidar</button>
+                        </div>
+                        <div className="space-y-3">
+                            {teamMembers.map(member => (
+                                <div key={member.id} className="flex justify-between items-center p-3 bg-slate-50 rounded-lg border border-slate-100">
+                                    <div>
+                                        <span className="font-bold text-slate-700 block">{member.member_email}</span>
+                                        <span className="text-xs text-slate-400 uppercase font-bold flex items-center gap-1">
+                                            {member.member_user_id ? <span className="text-emerald-600">● Ativo</span> : <span className="text-orange-500">○ Pendente</span>} • {member.role === 'kitchen_manager' ? 'Gerente de Cozinha' : member.role}
+                                        </span>
+                                    </div>
+                                    <button className="text-xs text-red-500 hover:underline">Remover</button>
+                                </div>
+                            ))}
+                            {teamMembers.length === 0 && <p className="text-center text-slate-400 text-sm italic">Nenhum membro na equipe.</p>}
+                        </div>
+                    </Card>
+                </div>
+            )}
+
             {view === 'reports' && (
                 <div className="p-6 md:p-10 w-full max-w-6xl mx-auto"><h1 className="text-3xl font-bold text-slate-900 mb-8 flex items-center gap-3"><BarChart2 className="text-blue-600"/> Relatórios Avançados</h1>
                     {(() => { const activeRecs = recipes.filter(r => r.type !== 'sub_recipe' && r.status === 'active').map(r => ({...r, stats: getRecipeCosts(r)})).sort((a,b) => b.stats.profit - a.stats.profit); return (
@@ -1138,7 +1307,7 @@ export default function App() {
                                 <div className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-0.5">
                                     {currentRecipe.type === 'drink' ? 'Bebida & Drink' : currentRecipe.type === 'sub_recipe' ? 'Base & Sub-receita' : 'Prato & Ficha Técnica'}
                                 </div>
-                                <input className="text-xl font-bold bg-transparent outline-none placeholder-slate-300 w-full text-slate-800" placeholder="Nome da Receita" value={currentRecipe.name} onChange={e => { setCurrentRecipe({...currentRecipe, name: e.target.value}); setHasUnsavedChanges(true); }} autoFocus/>
+                                <input className="text-xl font-bold bg-transparent outline-none placeholder-slate-300 w-full text-slate-800" placeholder="Nome da Receita" value={currentRecipe.name} onChange={e => {setCurrentRecipe({...currentRecipe, name: e.target.value}); setHasUnsavedChanges(true); }} autoFocus/>
                             </div>
                          </div>
                          <div className="flex gap-3 items-center"><button onClick={() => { setCurrentRecipe({...currentRecipe, status: currentRecipe.status === 'active' ? 'inactive' : 'active'}); setHasUnsavedChanges(true); }} className={`px-4 py-1.5 rounded-full text-xs font-bold flex items-center gap-2 border transition-all ${currentRecipe.status === 'active' ? 'bg-emerald-50 text-emerald-700 border-emerald-200' : 'bg-slate-50 text-slate-500 border-slate-200'}`}>{currentRecipe.status === 'active' ? <ToggleRight size={18}/> : <ToggleLeft size={18}/>} {currentRecipe.status === 'active' ? 'Ativo' : 'Inativo'}</button><div className="h-6 w-px bg-slate-200 mx-2"></div><button onClick={() => setView('print-preview')} className="flex items-center gap-2 text-slate-600 px-4 py-2 rounded-lg hover:bg-slate-100 font-medium transition-colors"><Printer size={18}/> Imprimir</button><button onClick={saveRecipe} className="bg-slate-900 text-white px-6 py-2 rounded-lg shadow-lg hover:bg-slate-800 flex items-center gap-2 font-bold transition-all transform active:scale-95"><Save size={18}/> Salvar</button></div>
@@ -1261,8 +1430,13 @@ export default function App() {
                                             setCurrentRecipe({...currentRecipe, extra_other_direct: num});
                                         }
                                         setHasUnsavedChanges(true);
-                                     }} placeholder="Valor ou % (ex: 10%)" /></InputGroup><InputGroup label="Rateio Custo Fixo"><NumberInput className="border-amber-200 bg-amber-50 focus:ring-amber-500" value={currentRecipe.extra_fixed_cost} onChange={v => {setCurrentRecipe({...currentRecipe, extra_fixed_cost: v}); setHasUnsavedChanges(true);}} /></InputGroup></div></Card><Card className="col-span-12 lg:col-span-5 flex flex-col overflow-hidden"><div className="bg-slate-50 p-3 border-b border-slate-200 font-bold text-sm text-slate-700">Modo de Preparo</div><textarea className="w-full h-full p-4 resize-none outline-none text-sm text-slate-700 leading-relaxed bg-white" placeholder="Descreva o passo a passo..." value={currentRecipe.instructions} onChange={e => {setCurrentRecipe({...currentRecipe, instructions: e.target.value}); setHasUnsavedChanges(true);}} /></Card></div>
+                                     }} placeholder="Valor ou % (ex: 10%)" /></InputGroup>
+                                     <Restricted>
+                                        <InputGroup label="Rateio Custo Fixo"><NumberInput className="border-amber-200 bg-amber-50 focus:ring-amber-500" value={currentRecipe.extra_fixed_cost} onChange={v => {setCurrentRecipe({...currentRecipe, extra_fixed_cost: v}); setHasUnsavedChanges(true);}} /></InputGroup>
+                                     </Restricted>
+                                     </div></Card><Card className="col-span-12 lg:col-span-5 flex flex-col overflow-hidden"><div className="bg-slate-50 p-3 border-b border-slate-200 font-bold text-sm text-slate-700">Modo de Preparo</div><textarea className="w-full h-full p-4 resize-none outline-none text-sm text-slate-700 leading-relaxed bg-white" placeholder="Descreva o passo a passo..." value={currentRecipe.instructions} onChange={e => {setCurrentRecipe({...currentRecipe, instructions: e.target.value}); setHasUnsavedChanges(true);}} /></Card></div>
                         </div>
+                        {userRole === 'admin' && (
                         <div className="w-[400px] bg-white border-l border-slate-200 flex flex-col z-10 shadow-xl shadow-slate-200/50">
                              <div className="p-6 border-b border-slate-100 bg-slate-50/50"><h3 className="font-bold text-lg flex items-center gap-2 mb-1 text-slate-800"><DollarSign className="text-emerald-500"/> Precificação</h3><p className="text-xs text-slate-500">Análise financeira em tempo real.</p></div>
                              <div className="flex-1 overflow-y-auto p-6 space-y-8">
@@ -1273,4 +1447,7 @@ export default function App() {
                                                     <div className="flex gap-4"><div className="flex-1"><InputGroup label="Meta %"><NumberInput className="text-right font-bold" value={currentRecipe.pricing_target} onChange={v => {setCurrentRecipe({...currentRecipe, pricing_target: v}); setHasUnsavedChanges(true);}} /></InputGroup></div><div className="flex-1"><InputGroup label="Sugerido"><div className="w-full bg-slate-100 border border-slate-200 text-slate-500 text-sm rounded-lg px-3 py-2.5 text-right font-mono font-bold cursor-not-allowed">{formatCurrency(suggested)}</div></InputGroup></div></div>
                                                     <div className="pt-6 border-t border-slate-100"><label className="text-xs font-bold text-slate-900 uppercase flex items-center gap-2 mb-2">Preço de Venda <span className="text-[10px] font-normal text-slate-400 bg-slate-100 px-1.5 rounded">FINAL</span></label><div className="flex items-center gap-3 relative"><span className="absolute left-0 top-1 text-emerald-600 font-bold text-2xl">R$</span><NumberInput className="bg-transparent text-4xl font-black text-slate-900 w-full outline-none border-b-2 border-slate-200 focus:border-emerald-500 pl-8 transition-colors pb-1" placeholder="0,00" value={currentRecipe.final_price} onChange={v => {setCurrentRecipe({...currentRecipe, final_price: v}); setHasUnsavedChanges(true);}} /></div></div>
                                                     <div className="bg-slate-50 p-4 rounded-xl border border-slate-100 space-y-2"><div className="flex justify-between text-xs text-slate-500 items-center"><span>Impostos ({currentRecipe.taxes_pct}%)</span><NumberInput className="w-12 bg-white border rounded px-1 text-right text-xs" value={currentRecipe.taxes_pct} onChange={v => setCurrentRecipe({...currentRecipe, taxes_pct: v})}/></div><div className="flex justify-between text-xs text-slate-500 items-center"><span>Taxas Cartão ({currentRecipe.card_fee_pct}%)</span><NumberInput className="w-12 bg-white border rounded px-1 text-right text-xs" value={currentRecipe.card_fee_pct} onChange={v => setCurrentRecipe({...currentRecipe, card_fee_pct: v})}/></div><div className="pt-2 border-t border-slate-200 flex justify-between text-xs font-bold text-slate-700"><span>Receita Líquida</span><span>{formatCurrency(costs.price - costs.tax - (costs.price * (Number(currentRecipe.card_fee_pct)/100)))}</span></div></div>
-                                                    <div className="space-y-4"><div className="flex justify-between items-end"><label className="text-xs font-bold text-slate-400 uppercase">Lucro Líquido</label><span className={`text-2xl font-bold ${costs.profit > 0 ? 'text-emerald-600' : 'text-red-500'}`}>{formatCurrency(costs.profit)}</span></div><div><div className="flex justify-between items-end mb-2"><label className="text-xs font-bold text-slate-400 uppercase">Margem Real</label><span className={`text-xl font-bold ${costs.margin >= 20 ? 'text-emerald-600' : costs.margin > 0 ? 'text-orange-500' : 'text-red-500'}`}>{costs.margin.toFixed(1)}%</span></div><div className="w-full bg-slate-100 h-3 rounded-full overflow-hidden shadow-inner"><div className={`h-full transition-all duration-500 ${costs.margin >= 20 ? 'bg-emerald-500' : costs.margin > 0 ? 'bg-orange-400' : 'bg-red-500'}`} style={{width: `${Math.min(Math.max(costs.margin, 0), 100)}%`}}></div></div><p className="text-[10px] text-slate-400 mt-1 text-center">Ideal: &gt; 25%</p></div></div></div>)}</> )})()}</div></div></div></div>)}
+                                                    <div className="space-y-4"><div className="flex justify-between items-end"><label className="text-xs font-bold text-slate-400 uppercase">Lucro Líquido</label><span className={`text-2xl font-bold ${costs.profit > 0 ? 'text-emerald-600' : 'text-red-500'}`}>{formatCurrency(costs.profit)}</span></div><div><div className="flex justify-between items-end mb-2"><label className="text-xs font-bold text-slate-400 uppercase">Margem Real</label><span className={`text-xl font-bold ${costs.margin >= 20 ? 'text-emerald-600' : costs.margin > 0 ? 'text-orange-500' : 'text-red-500'}`}>{costs.margin.toFixed(1)}%</span></div><div className="w-full bg-slate-100 h-3 rounded-full overflow-hidden shadow-inner"><div className={`h-full transition-all duration-500 ${costs.margin >= 20 ? 'bg-emerald-500' : costs.margin > 0 ? 'bg-orange-400' : 'bg-red-500'}`} style={{width: `${Math.min(Math.max(costs.margin, 0), 100)}%`}}></div></div><p className="text-[10px] text-slate-400 mt-1 text-center">Ideal: &gt; 25%</p></div></div></div>)}</> )})()}</div></div>
+                        )}
+                        </div>
+                    </div></div>)}
