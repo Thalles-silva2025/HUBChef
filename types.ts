@@ -1,18 +1,4 @@
-
 export type UnitType = 'kg' | 'g' | 'L' | 'ml' | 'un';
-
-export type UserRole = 'admin' | 'kitchen_manager';
-
-export interface TeamMember {
-  id: string;
-  owner_user_id: string;
-  member_user_id: string | null; // null if pending invite
-  member_email: string;
-  role: UserRole;
-  can_view_prices?: boolean;
-  invitation_code?: string;
-  created_at?: string;
-}
 
 export interface Ingredient {
   id: string;
