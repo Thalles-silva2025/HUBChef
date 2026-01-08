@@ -25,6 +25,15 @@
       body { font-family: 'Inter', sans-serif; }
       .font-mono { font-family: 'JetBrains Mono', monospace; }
       
+      /* Esconde a barra de rolagem visualmente, mas mantém a função */
+      .no-scrollbar::-webkit-scrollbar {
+          display: none;
+      }
+      .no-scrollbar {
+          -ms-overflow-style: none;  /* IE and Edge */
+          scrollbar-width: none;  /* Firefox */
+      }
+
       /* Print Styles override */
       @media print {
         @page { size: A4; margin: 1cm; }

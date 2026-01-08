@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { 
   Plus, Trash2, Save, FileText, DollarSign, 
   ChefHat, ArrowRight, Printer, History,
@@ -37,13 +37,22 @@ const formatMonth = (m: number) => {
 };
 
 // --- UI COMPONENTS ---
-const Card = ({ children, className = "" }: { children: React.ReactNode, className?: string }) => (
+interface CardProps {
+  children?: React.ReactNode;
+  className?: string;
+}
+const Card: React.FC<CardProps> = ({ children, className = "" }) => (
   <div className={`bg-white rounded-xl border border-slate-200 shadow-sm ${className}`}>
     {children}
   </div>
 );
 
-const InputGroup = ({ label, children, className = "" }: { label: string, children: React.ReactNode, className?: string }) => (
+interface InputGroupProps {
+  label: string;
+  children?: React.ReactNode;
+  className?: string;
+}
+const InputGroup: React.FC<InputGroupProps> = ({ label, children, className = "" }) => (
   <div className={`flex flex-col gap-1.5 ${className}`}>
     <label className="text-xs font-semibold text-slate-500 uppercase tracking-wide">{label}</label>
     {children}
@@ -66,7 +75,11 @@ const StyledSelect = (props: React.SelectHTMLAttributes<HTMLSelectElement>) => (
   </select>
 );
 
-const Badge = ({ children, color = "slate" }: { children: React.ReactNode, color?: "slate" | "emerald" | "red" | "blue" | "orange" | "purple" | "yellow" }) => {
+interface BadgeProps {
+  children?: React.ReactNode;
+  color?: "slate" | "emerald" | "red" | "blue" | "orange" | "purple" | "yellow";
+}
+const Badge: React.FC<BadgeProps> = ({ children, color = "slate" }) => {
   const colors = {
     slate: "bg-slate-100 text-slate-600",
     emerald: "bg-emerald-100 text-emerald-700",
@@ -85,7 +98,6 @@ const Badge = ({ children, color = "slate" }: { children: React.ReactNode, color
 
 // --- PRINT COMPONENT ---
 const PrintPreviewComponent = ({ recipe, ingredients, recipes, onClose }: { recipe: Recipe, ingredients: Ingredient[], recipes: Recipe[], onClose: () => void }) => {
-    // ... (Keeping logic identical)
     const isSubRecipe = recipe.type === 'sub_recipe';
     const availableSubRecipes = recipes
         .filter(r => r.type === 'sub_recipe' && r.id !== recipe.id)
@@ -302,6 +314,16 @@ export default function App() {
   const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
   const [showUnsavedModal, setShowUnsavedModal] = useState(false);
   const [pendingView, setPendingView] = useState<string | null>(null);
+
+  // Auto-scroll ref
+  const editorScrollRef = useRef<HTMLDivElement>(null);
+  const scrollToBottom = () => {
+    setTimeout(() => {
+        if(editorScrollRef.current) {
+            editorScrollRef.current.scrollTo({ top: editorScrollRef.current.scrollHeight, behavior: 'smooth' });
+        }
+    }, 100);
+  };
 
   // Import Modal State
   const [showImportModal, setShowImportModal] = useState(false);
@@ -730,7 +752,7 @@ export default function App() {
                 )}
             </div>
 
-            <div className="flex-1 px-3 space-y-1 overflow-y-auto custom-scrollbar">
+            <div className="flex-1 px-3 space-y-1 overflow-y-auto no-scrollbar">
                 <NavButton icon={Activity} label="Dashboard" target="dashboard" />
                 <NavButton icon={BarChart2} label="Relatórios" target="reports" />
                 
@@ -1171,7 +1193,7 @@ export default function App() {
 
                     <div className="flex-1 overflow-hidden flex flex-row">
                         {/* LEFT: Ingredients & Prep (Scrollable) */}
-                        <div className="flex-1 overflow-y-auto p-8 space-y-8 bg-slate-50/50">
+                        <div ref={editorScrollRef} className="flex-1 overflow-y-auto p-8 space-y-8 bg-slate-50/50 scroll-smooth">
                              {/* Basic Info */}
                              <div className="grid grid-cols-12 gap-6">
                                 <Card className="col-span-8 p-6 grid grid-cols-2 gap-6">
@@ -1197,24 +1219,24 @@ export default function App() {
                              </div>
 
                              {/* Items Table */}
-                             <Card className="overflow-hidden min-h-[400px] flex flex-col">
-                                 <div className="p-4 bg-slate-50 border-b border-slate-200 flex justify-between items-center">
+                             <Card className="col-span-12 shadow-sm border border-slate-200">
+                                 <div className="p-4 bg-slate-50 border-b border-slate-200 flex justify-between items-center shrink-0 sticky top-0 z-30">
                                      <h3 className="font-bold text-slate-700 flex items-center gap-2"><Layers size={18} className="text-slate-400"/> Composição</h3>
                                      <div className="flex gap-2">
-                                         <button onClick={() => { setCurrentRecipe({...currentRecipe, items: [...currentRecipe.items, { item_type: 'ingredient', ref_id: '', qty: 0, unit: 'kg' }]}); setHasUnsavedChanges(true); }} className="text-xs bg-blue-50 text-blue-700 border border-blue-200 hover:bg-blue-100 px-3 py-2 rounded-lg flex items-center gap-1 font-bold transition-colors"><Plus size={14}/> Adicionar Insumo</button>
-                                         <button onClick={() => { setCurrentRecipe({...currentRecipe, items: [...currentRecipe.items, { item_type: 'sub_recipe', ref_id: '', qty: 0, unit: 'kg' }]}); setHasUnsavedChanges(true); }} className="text-xs bg-orange-50 text-orange-700 border border-orange-200 hover:bg-orange-100 px-3 py-2 rounded-lg flex items-center gap-1 font-bold transition-colors"><Plus size={14}/> Adicionar Base</button>
+                                         <button onClick={() => { setCurrentRecipe({...currentRecipe, items: [...currentRecipe.items, { item_type: 'ingredient', ref_id: '', qty: 0, unit: 'kg' }]}); setHasUnsavedChanges(true); scrollToBottom(); }} className="text-xs bg-blue-50 text-blue-700 border border-blue-200 hover:bg-blue-100 px-3 py-2 rounded-lg flex items-center gap-1 font-bold transition-colors"><Plus size={14}/> Adicionar Insumo</button>
+                                         <button onClick={() => { setCurrentRecipe({...currentRecipe, items: [...currentRecipe.items, { item_type: 'sub_recipe', ref_id: '', qty: 0, unit: 'kg' }]}); setHasUnsavedChanges(true); scrollToBottom(); }} className="text-xs bg-orange-50 text-orange-700 border border-orange-200 hover:bg-orange-100 px-3 py-2 rounded-lg flex items-center gap-1 font-bold transition-colors"><Plus size={14}/> Adicionar Base</button>
                                      </div>
                                  </div>
-                                 <div className="flex-1 overflow-x-auto">
+                                 <div className="flex-1 relative">
                                     <table className="w-full text-sm">
-                                        <thead className="bg-white border-b border-slate-100 text-slate-500">
+                                        <thead className="bg-slate-50 border-b border-slate-200 text-slate-500 sticky top-[61px] z-20 shadow-sm">
                                             <tr>
-                                                <th className="p-3 pl-6 text-left w-20">Tipo</th>
-                                                <th className="p-3 text-left w-[40%]">Item</th>
-                                                <th className="p-3 w-24">Qtd</th>
-                                                <th className="p-3 w-20 text-center">Un</th>
-                                                <th className="p-3 text-right">Custo</th>
-                                                <th className="w-16"></th>
+                                                <th className="p-3 pl-6 text-left w-20 bg-slate-50">Tipo</th>
+                                                <th className="p-3 text-left w-[40%] bg-slate-50">Item</th>
+                                                <th className="p-3 w-24 bg-slate-50">Qtd</th>
+                                                <th className="p-3 w-20 text-center bg-slate-50">Un</th>
+                                                <th className="p-3 text-right bg-slate-50">Custo</th>
+                                                <th className="w-16 bg-slate-50"></th>
                                             </tr>
                                         </thead>
                                         <tbody className="divide-y divide-slate-50">
