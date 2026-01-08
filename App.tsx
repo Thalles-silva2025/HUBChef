@@ -1650,7 +1650,7 @@ export default function App() {
                          <div className="flex items-center gap-4 flex-1">
                             <button onClick={() => { if(hasUnsavedChanges) setShowUnsavedModal(true); else setView(currentRecipe.type === 'drink' ? 'drinks' : currentRecipe.type === 'sub_recipe' ? 'sub_recipes' : 'recipes'); }} className="p-2 hover:bg-slate-100 rounded-lg text-slate-500 transition-colors"><ChevronLeft/></button>
                             <div className="h-8 w-px bg-slate-200"></div>
-                            <input className="text-xl font-bold bg-transparent outline-none placeholder-slate-300 w-full text-slate-800" placeholder="Nome da Ficha Técnica" value={currentRecipe.name} onChange={e => {setCurrentRecipe({...currentRecipe, name: e.target.value}); setHasUnsavedChanges(true); }} autoFocus/>
+                            <input className="text-xl font-bold bg-transparent outline-none placeholder-slate-300 w-full text-slate-800" placeholder="Nome da Ficha Técnica" value={currentRecipe.name} onChange={e => { setCurrentRecipe({...currentRecipe, name: e.target.value}); setHasUnsavedChanges(true); }} autoFocus/>
                          </div>
                          <div className="flex gap-3 items-center">
                             <button onClick={() => { setCurrentRecipe({...currentRecipe, status: currentRecipe.status === 'active' ? 'inactive' : 'active'}); setHasUnsavedChanges(true); }} className={`px-4 py-1.5 rounded-full text-xs font-bold flex items-center gap-2 border transition-all ${currentRecipe.status === 'active' ? 'bg-emerald-50 text-emerald-700 border-emerald-200' : 'bg-slate-50 text-slate-500 border-slate-200'}`}>
@@ -1691,4 +1691,316 @@ export default function App() {
 
                              {/* Items Table */}
                              <Card className="col-span-12 shadow-sm border border-slate-200">
-                                 <div className="p-4 bg-slate-50 border-b border-slate-200 flex justify-between items-center shrink-0 sticky top-0
+                                 <div className="p-4 bg-slate-50 border-b border-slate-200 flex justify-between items-center shrink-0 sticky top-0 z-30">
+                                     <h3 className="font-bold text-slate-700 flex items-center gap-2"><Layers size={18} className="text-slate-400"/> Composição</h3>
+                                     <div className="flex gap-2">
+                                         <button onClick={() => { setCurrentRecipe({...currentRecipe, items: [...currentRecipe.items, { item_type: 'ingredient', ref_id: '', qty: 0, unit: 'kg' }]}); setHasUnsavedChanges(true); scrollToBottom(); }} className="text-xs bg-blue-50 text-blue-700 border border-blue-200 hover:bg-blue-100 px-3 py-2 rounded-lg flex items-center gap-1 font-bold transition-colors"><Plus size={14}/> Adicionar Insumo</button>
+                                         <button onClick={() => { setCurrentRecipe({...currentRecipe, items: [...currentRecipe.items, { item_type: 'sub_recipe', ref_id: '', qty: 0, unit: 'kg' }]}); setHasUnsavedChanges(true); scrollToBottom(); }} className="text-xs bg-orange-50 text-orange-700 border border-orange-200 hover:bg-orange-100 px-3 py-2 rounded-lg flex items-center gap-1 font-bold transition-colors"><Plus size={14}/> Adicionar Base</button>
+                                     </div>
+                                 </div>
+                                 <div className="flex-1 relative">
+                                    <table className="w-full text-sm">
+                                        <thead className="bg-slate-50 border-b border-slate-200 text-slate-500 sticky top-[61px] z-20 shadow-sm">
+                                            <tr>
+                                                <th className="p-3 pl-6 text-left w-20 bg-slate-50">Tipo</th>
+                                                <th className="p-3 text-left w-[40%] bg-slate-50">Item</th>
+                                                <th className="p-3 w-24 bg-slate-50">Qtd</th>
+                                                <th className="p-3 w-20 text-center bg-slate-50">Un</th>
+                                                <th className="p-3 text-right bg-slate-50">Custo</th>
+                                                <th className="w-16 bg-slate-50"></th>
+                                            </tr>
+                                        </thead>
+                                        <tbody className="divide-y divide-slate-50">
+                                            {currentRecipe.items.map((item, idx) => {
+                                                let cost = 0;
+                                                let options: any[] = [];
+                                                if(item.item_type === 'ingredient') {
+                                                    options = ingredients;
+                                                    const ing = ingredients.find(i => i.id === item.ref_id);
+                                                    if(ing) cost = item.qty * ing.cost_per_unit;
+                                                } else {
+                                                    options = recipes.filter(r => r.type === 'sub_recipe' && r.id !== currentRecipe.id);
+                                                    const sub = options.find((o:any) => o.id === item.ref_id) as Recipe;
+                                                    if(sub) {
+                                                        const subCost = getRecipeCosts(sub).costPerPortion;
+                                                        cost = item.qty * subCost;
+                                                    }
+                                                }
+                                                
+                                                const updateItem = (field: keyof RecipeItemDB, val: any) => {
+                                                    const newItems = [...currentRecipe.items];
+                                                    newItems[idx] = { ...newItems[idx], [field]: val };
+                                                    if(field === 'ref_id') {
+                                                        const found = options.find((o:any) => o.id === val);
+                                                        if(found) newItems[idx].unit = (found as any).unit;
+                                                    }
+                                                    setCurrentRecipe({...currentRecipe, items: newItems});
+                                                    setHasUnsavedChanges(true);
+                                                };
+
+                                                return (
+                                                    <tr key={idx} className="group hover:bg-slate-50/50">
+                                                        <td className="p-2 pl-6">
+                                                            <Badge color={item.item_type === 'ingredient' ? 'blue' : 'orange'}>{item.item_type === 'ingredient' ? 'INS' : 'BASE'}</Badge>
+                                                        </td>
+                                                        <td className="p-2">
+                                                            <StyledSelect value={item.ref_id} onChange={e => updateItem('ref_id', e.target.value)}>
+                                                                <option value="">Selecione...</option>
+                                                                {options.map((o:any) => <option key={o.id} value={o.id}>{o.name}</option>)}
+                                                            </StyledSelect>
+                                                        </td>
+                                                        <td className="p-2"><StyledInput type="number" className="text-center font-medium" value={item.qty} onChange={e => updateItem('qty', Number(e.target.value))} /></td>
+                                                        <td className="p-2 text-center text-slate-500 text-xs font-bold uppercase">{item.unit}</td>
+                                                        <td className="p-2 text-right font-mono text-slate-700 font-medium">{formatCurrency(cost)}</td>
+                                                        <td className="p-2 text-center"><button onClick={() => { const newItems = currentRecipe.items.filter((_, i) => i !== idx); setCurrentRecipe({...currentRecipe, items: newItems}); setHasUnsavedChanges(true); }} className="text-slate-300 hover:text-red-500 p-1.5 rounded-full hover:bg-red-50 transition-colors"><X size={16}/></button></td>
+                                                    </tr>
+                                                )
+                                            })}
+                                            {currentRecipe.items.length === 0 && (
+                                                <tr><td colSpan={6} className="p-12 text-center text-slate-400 italic">Nenhum item adicionado à receita.</td></tr>
+                                            )}
+                                        </tbody>
+                                    </table>
+                                 </div>
+                             </Card>
+
+                             {/* Extras & Instructions Grid */}
+                             <div className="grid grid-cols-12 gap-6">
+                                 {/* ... [kept same] ... */}
+                                 <Card className="col-span-12 lg:col-span-7 p-6">
+                                     <h3 className="font-bold text-slate-700 mb-4 flex items-center gap-2 border-b pb-2"><TrendingUp size={18}/> Custos Indiretos & Extras</h3>
+                                     <div className="grid grid-cols-2 gap-4 mb-4">
+                                        <InputGroup label="Embalagem"><StyledInput type="number" value={currentRecipe.extra_packaging} onChange={e => {setCurrentRecipe({...currentRecipe, extra_packaging: Number(e.target.value)}); setHasUnsavedChanges(true);}} /></InputGroup>
+                                        <InputGroup label={currentRecipe.type === 'drink' ? 'Gelo/Guarnição' : 'Energia/Gás'}><StyledInput type="number" value={currentRecipe.type === 'drink' ? currentRecipe.extra_ice_garnish : currentRecipe.extra_utilities} onChange={e => {setCurrentRecipe({...currentRecipe, [currentRecipe.type === 'drink' ? 'extra_ice_garnish' : 'extra_utilities']: Number(e.target.value)}); setHasUnsavedChanges(true);}} /></InputGroup>
+                                     </div>
+                                     <div className="grid grid-cols-2 gap-4">
+                                        <InputGroup label="Outros"><StyledInput type="number" value={currentRecipe.extra_other_direct} onChange={e => {setCurrentRecipe({...currentRecipe, extra_other_direct: Number(e.target.value)}); setHasUnsavedChanges(true);}} /></InputGroup>
+                                        <InputGroup label="Rateio Custo Fixo"><StyledInput className="border-amber-200 bg-amber-50 focus:ring-amber-500" type="number" value={currentRecipe.extra_fixed_cost} onChange={e => {setCurrentRecipe({...currentRecipe, extra_fixed_cost: Number(e.target.value)}); setHasUnsavedChanges(true);}} /></InputGroup>
+                                     </div>
+                                 </Card>
+                                 <Card className="col-span-12 lg:col-span-5 flex flex-col overflow-hidden">
+                                     <div className="bg-slate-50 p-3 border-b border-slate-200 font-bold text-sm text-slate-700">Modo de Preparo</div>
+                                     <textarea className="w-full h-full p-4 resize-none outline-none text-sm text-slate-700 leading-relaxed bg-white" placeholder="Descreva o passo a passo..." value={currentRecipe.instructions} onChange={e => {setCurrentRecipe({...currentRecipe, instructions: e.target.value}); setHasUnsavedChanges(true);}} />
+                                 </Card>
+                             </div>
+                        </div>
+
+                        {/* RIGHT: Pricing Engine (Fixed Width) */}
+                        <div className="w-[400px] bg-white border-l border-slate-200 flex flex-col z-10 shadow-xl shadow-slate-200/50">
+                             {/* ... [kept same] ... */}
+                             <div className="p-6 border-b border-slate-100 bg-slate-50/50">
+                                <h3 className="font-bold text-lg flex items-center gap-2 mb-1 text-slate-800"><DollarSign className="text-emerald-500"/> Precificação</h3>
+                                <p className="text-xs text-slate-500">Análise financeira em tempo real.</p>
+                             </div>
+                             
+                             <div className="flex-1 overflow-y-auto p-6 space-y-8">
+                                 {(() => {
+                                     const costs = getRecipeCosts(currentRecipe);
+                                     let suggested = 0;
+                                     const targetDec = Number(currentRecipe.pricing_target)/100;
+                                     if(currentRecipe.pricing_method === 'margin') {
+                                         const div = 1 - (Number(currentRecipe.taxes_pct)/100) - (Number(currentRecipe.card_fee_pct)/100) - targetDec;
+                                         suggested = div > 0 ? costs.costPerPortion / div : 0;
+                                     } else {
+                                         suggested = costs.costPerPortion * (1 + targetDec);
+                                     }
+
+                                     return (
+                                         <>
+                                            <div className="space-y-3 pb-6 border-b border-slate-100">
+                                                <div className="flex justify-between items-center"><span className="text-sm text-slate-500 font-medium">Custo Produção Total</span> <span className="font-mono text-slate-700">{formatCurrency(costs.totalCost)}</span></div>
+                                                <div className="flex justify-between items-center p-3 bg-slate-50 rounded-lg border border-slate-100">
+                                                    <span className="text-xs font-bold uppercase text-slate-500">Custo / {currentRecipe.type === 'sub_recipe' ? currentRecipe.unit : 'Porção'}</span> 
+                                                    <span className="font-bold text-lg text-slate-800">{formatCurrency(costs.costPerPortion)}</span>
+                                                </div>
+                                            </div>
+
+                                            {currentRecipe.type !== 'sub_recipe' && (
+                                                <div className="space-y-6 animate-in fade-in slide-in-from-right-4 duration-500">
+                                                    {/* ... [Pricing form kept same] ... */}
+                                                    <div>
+                                                        <label className="text-xs font-bold text-slate-400 uppercase mb-2 block">Método de Precificação</label>
+                                                        <div className="flex bg-slate-100 p-1 rounded-lg">
+                                                            <button onClick={() => {setCurrentRecipe({...currentRecipe, pricing_method: 'margin'}); setHasUnsavedChanges(true);}} className={`flex-1 text-xs py-2 rounded-md font-bold transition-all ${currentRecipe.pricing_method === 'margin' ? 'bg-white text-emerald-600 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}>Margem</button>
+                                                            <button onClick={() => {setCurrentRecipe({...currentRecipe, pricing_method: 'markup'}); setHasUnsavedChanges(true);}} className={`flex-1 text-xs py-2 rounded-md font-bold transition-all ${currentRecipe.pricing_method === 'markup' ? 'bg-white text-emerald-600 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}>Markup</button>
+                                                        </div>
+                                                    </div>
+
+                                                    <div className="flex gap-4">
+                                                        <div className="flex-1">
+                                                            <InputGroup label="Meta %">
+                                                                <StyledInput type="number" className="text-right font-bold" value={currentRecipe.pricing_target} onChange={e => {setCurrentRecipe({...currentRecipe, pricing_target: Number(e.target.value)}); setHasUnsavedChanges(true);}} />
+                                                            </InputGroup>
+                                                        </div>
+                                                        <div className="flex-1">
+                                                            <InputGroup label="Sugerido">
+                                                                <div className="w-full bg-slate-100 border border-slate-200 text-slate-500 text-sm rounded-lg px-3 py-2.5 text-right font-mono font-bold cursor-not-allowed">
+                                                                    {formatCurrency(suggested)}
+                                                                </div>
+                                                            </InputGroup>
+                                                        </div>
+                                                    </div>
+                                                    
+                                                    <div className="pt-6 border-t border-slate-100">
+                                                        <label className="text-xs font-bold text-slate-900 uppercase flex items-center gap-2 mb-2">Preço de Venda <span className="text-[10px] font-normal text-slate-400 bg-slate-100 px-1.5 rounded">FINAL</span></label>
+                                                        <div className="flex items-center gap-3 relative">
+                                                            <span className="absolute left-0 top-1 text-emerald-600 font-bold text-2xl">R$</span>
+                                                            <input type="number" className="bg-transparent text-4xl font-black text-slate-900 w-full outline-none border-b-2 border-slate-200 focus:border-emerald-500 pl-8 transition-colors pb-1" placeholder="0.00" value={currentRecipe.final_price} onChange={e => {setCurrentRecipe({...currentRecipe, final_price: Number(e.target.value)}); setHasUnsavedChanges(true);}} />
+                                                        </div>
+                                                    </div>
+
+                                                    <div className="bg-slate-50 p-4 rounded-xl border border-slate-100 space-y-2">
+                                                        <div className="flex justify-between text-xs text-slate-500 items-center">
+                                                            <span>Impostos ({currentRecipe.taxes_pct}%)</span>
+                                                            <input type="number" className="w-12 bg-white border rounded px-1 text-right text-xs" value={currentRecipe.taxes_pct} onChange={e => setCurrentRecipe({...currentRecipe, taxes_pct: Number(e.target.value)})}/>
+                                                        </div>
+                                                        <div className="flex justify-between text-xs text-slate-500 items-center">
+                                                            <span>Taxas Cartão ({currentRecipe.card_fee_pct}%)</span>
+                                                            <input type="number" className="w-12 bg-white border rounded px-1 text-right text-xs" value={currentRecipe.card_fee_pct} onChange={e => setCurrentRecipe({...currentRecipe, card_fee_pct: Number(e.target.value)})}/>
+                                                        </div>
+                                                        <div className="pt-2 border-t border-slate-200 flex justify-between text-xs font-bold text-slate-700">
+                                                            <span>Receita Líquida</span>
+                                                            <span>{formatCurrency(costs.price - costs.tax - (costs.price * (Number(currentRecipe.card_fee_pct)/100)))}</span>
+                                                        </div>
+                                                    </div>
+
+                                                    <div className="space-y-4">
+                                                        <div className="flex justify-between items-end">
+                                                            <label className="text-xs font-bold text-slate-400 uppercase">Lucro Líquido</label>
+                                                            <span className={`text-2xl font-bold ${costs.profit > 0 ? 'text-emerald-600' : 'text-red-500'}`}>{formatCurrency(costs.profit)}</span>
+                                                        </div>
+                                                        
+                                                        <div>
+                                                            <div className="flex justify-between items-end mb-2">
+                                                                <label className="text-xs font-bold text-slate-400 uppercase">Margem Real</label>
+                                                                <span className={`text-xl font-bold ${costs.margin >= 20 ? 'text-emerald-600' : costs.margin > 0 ? 'text-orange-500' : 'text-red-500'}`}>{costs.margin.toFixed(1)}%</span>
+                                                            </div>
+                                                            <div className="w-full bg-slate-100 h-3 rounded-full overflow-hidden shadow-inner">
+                                                                <div className={`h-full transition-all duration-500 ${costs.margin >= 20 ? 'bg-emerald-500' : costs.margin > 0 ? 'bg-orange-400' : 'bg-red-500'}`} style={{width: `${Math.min(Math.max(costs.margin, 0), 100)}%`}}></div>
+                                                            </div>
+                                                            <p className="text-[10px] text-slate-400 mt-1 text-center">Ideal: &gt; 25%</p>
+                                                        </div>
+                                                    </div>
+                                                </div>
+                                            )}
+                                         </>
+                                     )
+                                 })()}
+                             </div>
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            {/* IMPORT MODAL */}
+            {showImportModal && (
+                <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm flex items-center justify-center z-[100]">
+                    <div className={`bg-white p-8 rounded-2xl shadow-2xl w-full border border-slate-100 transform transition-all scale-100 ${isImportReviewStep ? 'max-w-4xl' : 'max-w-lg'}`}>
+                        <div className="flex justify-between mb-6 items-center">
+                            <h3 className="font-bold text-xl text-slate-800 flex items-center gap-2"><Download className="text-blue-500"/> {isImportReviewStep ? 'Revisar Dados' : 'Importar Dados'}</h3>
+                            <button onClick={() => setShowImportModal(false)} className="text-slate-400 hover:text-slate-600"><X/></button>
+                        </div>
+
+                        {!isImportReviewStep ? (
+                            <>
+                                <div className="mb-4 text-sm text-slate-500 bg-blue-50 p-4 rounded-lg border border-blue-100">
+                                    Cole seus dados do Excel/CSV abaixo. O sistema identificará automaticamente:<br/>
+                                    <span className="font-mono text-xs text-blue-700 mt-1 block">Nome | Preço | Embalagem | Rendimento</span>
+                                    <span className="text-xs text-slate-400 mt-1 block">Ex: Acafrao | R$ 30,00 | 1 kg | 100%</span>
+                                </div>
+                                <textarea className="w-full h-40 border border-slate-300 rounded-lg p-3 text-xs font-mono mb-6 focus:ring-2 focus:ring-blue-500 outline-none" placeholder="Cole seus dados aqui..." value={importText} onChange={e => setImportText(e.target.value)}></textarea>
+                                <button onClick={handlePreviewImport} disabled={!importText.trim()} className="w-full bg-blue-600 hover:bg-blue-700 text-white py-3 rounded-lg font-bold shadow-lg shadow-blue-600/20 transition-all flex justify-center items-center gap-2">
+                                    Processar Texto
+                                </button>
+                            </>
+                        ) : (
+                            <>
+                                <div className="max-h-[500px] overflow-y-auto mb-6 border rounded-lg">
+                                    <table className="w-full text-sm text-left">
+                                        <thead className="bg-slate-50 text-slate-500 font-semibold text-xs sticky top-0">
+                                            <tr>
+                                                <th className="p-3">Nome</th>
+                                                <th className="p-3">Preço</th>
+                                                <th className="p-3">Emb.</th>
+                                                <th className="p-3">Rend.</th>
+                                                <th className="p-3">Status</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody className="divide-y divide-slate-100">
+                                            {importPreviewData.map((item, idx) => (
+                                                <tr key={idx} className={item.isValid ? 'bg-white' : 'bg-red-50'}>
+                                                    <td className="p-3 font-medium">{item.name}</td>
+                                                    <td className="p-3">{formatCurrency(item.price)}</td>
+                                                    <td className="p-3">{item.package_qty} {item.unit}</td>
+                                                    <td className="p-3">{item.yield_factor}%</td>
+                                                    <td className="p-3">
+                                                        {item.isValid ? 
+                                                            <span className="text-emerald-600 text-xs font-bold flex items-center gap-1"><CheckCircle size={14}/> Válido</span> : 
+                                                            <span className="text-red-600 text-xs font-bold flex items-center gap-1"><AlertCircle size={14}/> {item.errorMsg}</span>
+                                                        }
+                                                    </td>
+                                                </tr>
+                                            ))}
+                                        </tbody>
+                                    </table>
+                                </div>
+                                <div className="flex justify-between items-center bg-slate-50 p-4 rounded-lg">
+                                    <div className="text-sm text-slate-600">
+                                        <span className="font-bold text-slate-800">{importPreviewData.filter(i => i.isValid).length}</span> itens válidos prontos para importar.
+                                    </div>
+                                    <div className="flex gap-3">
+                                        <button onClick={() => setIsImportReviewStep(false)} className="text-slate-600 px-4 py-2 hover:bg-slate-200 rounded-lg">Voltar</button>
+                                        <button onClick={executeImport} disabled={isProcessingImport || importPreviewData.filter(i => i.isValid).length === 0} className="bg-emerald-600 hover:bg-emerald-700 text-white px-6 py-2 rounded-lg font-bold shadow-lg flex items-center gap-2">
+                                            {isProcessingImport && <Loader2 className="animate-spin" size={18}/>}
+                                            Confirmar Importação
+                                        </button>
+                                    </div>
+                                </div>
+                            </>
+                        )}
+                    </div>
+                </div>
+            )}
+
+            {/* DELETE CONFIRMATION MODAL */}
+            {deleteModal.open && (
+                <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm flex items-center justify-center z-[150]">
+                    <div className="bg-white p-8 rounded-2xl shadow-2xl w-full max-w-sm text-center border border-slate-100 animate-in zoom-in-95 duration-200">
+                        <div className="bg-red-100 w-16 h-16 rounded-full flex items-center justify-center mx-auto mb-6">
+                            <Trash2 className="text-red-600" size={32}/>
+                        </div>
+                        <h3 className="font-bold text-xl text-slate-900 mb-2">{deleteModal.title}</h3>
+                        <p className="text-sm text-slate-500 mb-8 leading-relaxed">{deleteModal.message}</p>
+                        
+                        <div className="flex flex-col gap-3">
+                            <button onClick={executeDelete} disabled={isDeleting} className="w-full bg-red-600 hover:bg-red-700 text-white py-3 rounded-xl font-bold shadow-lg shadow-red-600/20 transition-all flex justify-center items-center gap-2">
+                                {isDeleting ? <Loader2 className="animate-spin" size={20}/> : 'Sim, Excluir'}
+                            </button>
+                            <button onClick={() => setDeleteModal(prev => ({ ...prev, open: false }))} disabled={isDeleting} className="w-full bg-white border border-slate-200 text-slate-700 hover:bg-slate-50 py-3 rounded-xl font-medium transition-all">
+                                Cancelar
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            {/* UNSAVED CHANGES MODAL */}
+            {showUnsavedModal && (
+                <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm flex items-center justify-center z-[100]">
+                    <div className="bg-white p-8 rounded-2xl shadow-2xl w-full max-w-sm text-center border border-slate-100">
+                        <div className="bg-amber-100 w-16 h-16 rounded-full flex items-center justify-center mx-auto mb-6">
+                            <AlertTriangle className="text-amber-500" size={32}/>
+                        </div>
+                        <h3 className="font-bold text-xl text-slate-800 mb-2">Alterações não salvas</h3>
+                        <p className="text-sm text-slate-500 mb-8">Você tem alterações pendentes. Se sair agora, perderá o progresso não salvo.</p>
+                        <div className="flex flex-col gap-3">
+                            <button onClick={saveRecipe} className="bg-emerald-600 hover:bg-emerald-700 text-white py-3 rounded-xl font-bold shadow-lg shadow-emerald-600/20 transition-all">Salvar e Sair</button>
+                            <button onClick={() => { setHasUnsavedChanges(false); setShowUnsavedModal(false); if(pendingView) { setView(pendingView); setPendingView(null); } else setView('recipes'); }} className="bg-white border border-slate-200 text-slate-600 hover:bg-slate-50 py-3 rounded-xl font-medium transition-all">Descartar Alterações</button>
+                        </div>
+                    </div>
+                </div>
+            )}
+        </main>
+    </div>
+  );
+}
