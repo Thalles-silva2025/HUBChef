@@ -37,8 +37,16 @@
       /* Print Styles override */
       @media print {
         @page { size: A4; margin: 1cm; }
-        body { background: white; }
+        html, body { height: auto !important; overflow: visible !important; margin: 0 !important; }
+        body { background: white; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
         .no-print { display: none !important; }
+        
+        /* Ensure proper page breaking */
+        .page-break { page-break-before: always; }
+        .avoid-break { page-break-inside: avoid; break-inside: avoid; }
+        
+        /* Reset containers to allow flow */
+        #root, #root > div { height: auto !important; overflow: visible !important; display: block !important; }
       }
     </style>
   <script type="importmap">

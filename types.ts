@@ -1,3 +1,4 @@
+
 export type UnitType = 'kg' | 'g' | 'L' | 'ml' | 'un';
 
 export interface Ingredient {
@@ -12,10 +13,20 @@ export interface Ingredient {
   last_update?: string;
 }
 
+export type CategoryType = 'recipe' | 'expense';
+
 export interface Category {
   id: string;
   user_id: string;
   name: string;
+  type: CategoryType;
+}
+
+export interface FixedExpenseItem {
+  id?: string;
+  fixed_expense_id?: string;
+  category_id: string;
+  amount: number;
 }
 
 export interface FixedExpense {
@@ -26,6 +37,8 @@ export interface FixedExpense {
   total_expenses: number;
   total_dishes_sold: number;
   cost_per_dish: number;
+  // Virtual field for frontend
+  items?: FixedExpenseItem[];
 }
 
 export type RecipeType = 'food' | 'drink' | 'sub_recipe';
@@ -76,4 +89,33 @@ export interface Recipe {
   
   // Virtual field for frontend handling (fetched via join)
   items: RecipeItemDB[];
+}
+
+// --- PRODUCTION MODULE TYPES ---
+
+export interface ProductionItem {
+  id?: string;
+  item_name: string;
+  unit: string;
+  unit_cost: number;
+  planned_qty: number;
+  actual_qty: number;
+}
+
+export interface ProductionRun {
+  id: string;
+  recipe_id: string;
+  recipe_name: string;
+  created_at: string;
+  
+  planned_yield: number;
+  planned_time_minutes: number;
+  planned_cost: number;
+
+  actual_yield: number;
+  actual_time_minutes: number;
+  actual_cost: number;
+
+  notes?: string;
+  items?: ProductionItem[]; // Virtual for frontend
 }
