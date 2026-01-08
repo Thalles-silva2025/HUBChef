@@ -10,6 +10,7 @@ export interface TeamMember {
   member_email: string;
   role: UserRole;
   can_view_prices?: boolean;
+  invitation_code?: string;
   created_at?: string;
 }
 
