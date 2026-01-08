@@ -9,6 +9,7 @@ export interface TeamMember {
   member_user_id: string | null; // null if pending invite
   member_email: string;
   role: UserRole;
+  can_view_prices?: boolean;
   created_at?: string;
 }
 

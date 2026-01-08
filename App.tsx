@@ -3,7 +3,7 @@ import {
   Plus, Trash2, Save, FileText, DollarSign, 
   ChefHat, ArrowRight, Printer, History,
   AlertTriangle, Scale, Edit2, TrendingUp,
-  BarChart2, Activity, X, Loader2, FileSpreadsheet, Download, Wine, Layers, ChevronLeft, Settings, ToggleLeft, ToggleRight, Target, Search, MoreHorizontal, CheckSquare, Square, Clipboard, PieChart, CornerDownLeft, Users, Calculator, Lock
+  BarChart2, Activity, X, Loader2, FileSpreadsheet, Download, Wine, Layers, ChevronLeft, Settings, ToggleLeft, ToggleRight, Target, Search, MoreHorizontal, CheckSquare, Square, Clipboard, PieChart, CornerDownLeft, Users, Calculator, Lock, Eye, EyeOff, UserCheck, Tag
 } from 'lucide-react';
 import { 
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip as ReTooltip, ResponsiveContainer, PieChart as RePieChart, Pie, Cell, Legend
@@ -65,7 +65,7 @@ interface DeleteState {
   message: string;
   isBulk: boolean;
   ids: string[];
-  type: 'ingredients' | 'recipes' | 'expenses' | 'categories';
+  type: 'ingredients' | 'recipes' | 'expenses' | 'categories' | 'team_members';
 }
 
 // --- UI COMPONENTS ---
@@ -138,8 +138,6 @@ const NumberInput = ({
     const [localValue, setLocalValue] = useState(value?.toString().replace('.', ',') || '');
 
     useEffect(() => {
-        // Sync with external changes only if not focused (simplified for this context)
-        // Or simply update when the external value changes significantly
         if (document.activeElement !== document.getElementById(`num-input-${props.name || Math.random()}`)) {
              setLocalValue(value?.toString().replace('.', ',') || '');
         }
@@ -147,7 +145,6 @@ const NumberInput = ({
 
     const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
         const val = e.target.value;
-        // Allow digits, one comma, one dot
         if (/^[0-9]*[,.]?[0-9]*$/.test(val)) {
             setLocalValue(val);
             const num = parseFloat(val.replace(',', '.'));
@@ -181,8 +178,7 @@ const NumberInput = ({
 };
 
 // --- PRINT COMPONENT ---
-const PrintPreviewComponent = ({ recipe, ingredients, recipes, onClose }: { recipe: Recipe, ingredients: Ingredient[], recipes: Recipe[], onClose: () => void }) => {
-    // ... (Print component remains unchanged)
+const PrintPreviewComponent = ({ recipe, ingredients, recipes, onClose, showPrices }: { recipe: Recipe, ingredients: Ingredient[], recipes: Recipe[], onClose: () => void, showPrices: boolean }) => {
     const isSubRecipe = recipe.type === 'sub_recipe';
     const availableSubRecipes = recipes
         .filter(r => r.type === 'sub_recipe' && r.id !== recipe.id)
@@ -228,6 +224,8 @@ const PrintPreviewComponent = ({ recipe, ingredients, recipes, onClose }: { reci
     const taxes = price * ((Number(recipe.taxes_pct)||0)/100);
     const cardFee = price * ((Number(recipe.card_fee_pct)||0)/100);
     
+    const maskedCurrency = (val: number) => showPrices ? formatCurrency(val) : '---';
+
     const handlePrint = () => {
         window.print();
     };
@@ -268,14 +266,16 @@ const PrintPreviewComponent = ({ recipe, ingredients, recipes, onClose }: { reci
                         <div className="text-xs uppercase text-slate-500 font-bold mb-1">Tempo Total</div>
                         <div className="text-2xl font-bold text-slate-800">{(Number(recipe.operational_prep) || 0) + (Number(recipe.operational_cook) || 0) + (Number(recipe.operational_plating) || 0)} <span className="text-sm font-medium text-slate-500">min</span></div>
                     </div>
+                    {showPrices && (
                     <div className="border border-slate-200 p-5 rounded-xl bg-white shadow-sm">
                         <div className="text-xs uppercase text-slate-500 font-bold mb-1">Custo / {isSubRecipe ? 'Un' : 'Porção'}</div>
-                        <div className="text-2xl font-bold text-slate-800">{formatCurrency(costPerPortion)}</div>
+                        <div className="text-2xl font-bold text-slate-800">{maskedCurrency(costPerPortion)}</div>
                     </div>
-                        {!isSubRecipe && (
+                    )}
+                    {(!isSubRecipe && showPrices) && (
                         <div className="border border-emerald-100 p-5 rounded-xl bg-emerald-50">
                             <div className="text-xs uppercase text-emerald-600 font-bold mb-1">Preço Sugerido</div>
-                            <div className="text-2xl font-bold text-emerald-800">{formatCurrency(price)}</div>
+                            <div className="text-2xl font-bold text-emerald-800">{maskedCurrency(price)}</div>
                         </div>
                     )}
                 </div>
@@ -288,7 +288,7 @@ const PrintPreviewComponent = ({ recipe, ingredients, recipes, onClose }: { reci
                                 <th className="text-left p-3 rounded-l-lg">Item</th>
                                 <th className="text-right p-3">Qtd</th>
                                 <th className="text-center p-3">Un</th>
-                                <th className="text-right p-3 rounded-r-lg">Custo Total</th>
+                                {showPrices && <th className="text-right p-3 rounded-r-lg">Custo Total</th>}
                             </tr>
                         </thead>
                         <tbody className="divide-y divide-slate-100">
@@ -307,7 +307,7 @@ const PrintPreviewComponent = ({ recipe, ingredients, recipes, onClose }: { reci
                                         <td className="p-3 font-medium text-slate-700">{name}</td>
                                         <td className="p-3 text-right text-slate-600">{item.qty}</td>
                                         <td className="p-3 text-center text-slate-400 text-xs uppercase">{item.unit}</td>
-                                        <td className="p-3 text-right font-bold text-slate-800">{formatCurrency(cost)}</td>
+                                        {showPrices && <td className="p-3 text-right font-bold text-slate-800">{maskedCurrency(cost)}</td>}
                                     </tr>
                                 ); 
                             })}
@@ -322,38 +322,38 @@ const PrintPreviewComponent = ({ recipe, ingredients, recipes, onClose }: { reci
                             {recipe.instructions || "Nenhuma instrução cadastrada."}
                         </p>
                     </div>
+                    {showPrices && (
                     <div>
                         <h3 className="font-bold text-sm uppercase border-b-2 border-slate-200 mb-4 pb-2 text-slate-800">Detalhamento Financeiro</h3>
                         <ul className="text-sm space-y-3">
                             <li className="flex justify-between border-b border-slate-100 pb-2">
                                 <span className="text-slate-500">Insumos Totais</span> 
-                                <span className="font-medium">{formatCurrency(totalIngCost)}</span>
+                                <span className="font-medium">{maskedCurrency(totalIngCost)}</span>
                             </li>
                             <li className="flex justify-between border-b border-slate-100 pb-2">
                                 <span className="text-slate-500">Embalagem</span> 
-                                <span className="font-medium">{formatCurrency(recipe.extra_packaging)}</span>
+                                <span className="font-medium">{maskedCurrency(recipe.extra_packaging)}</span>
                             </li>
                             <li className="flex justify-between border-b border-slate-100 pb-2">
                                 <span className="text-slate-500">Custos Fixos (Rateio)</span> 
-                                <span className="font-medium">{formatCurrency(recipe.extra_fixed_cost)}</span>
+                                <span className="font-medium">{maskedCurrency(recipe.extra_fixed_cost)}</span>
                             </li>
                             <li className="flex justify-between border-b border-slate-100 pb-2">
                                 <span className="text-slate-500">Impostos & Taxas</span> 
-                                <span className="font-medium text-red-600">{formatCurrency(taxes + cardFee)}</span>
+                                <span className="font-medium text-red-600">{maskedCurrency(taxes + cardFee)}</span>
                             </li>
                             <li className="flex justify-between pt-2 items-center bg-slate-50 p-2 rounded-lg -mx-2">
                                 <span className="font-bold text-slate-800 uppercase text-xs">Custo Total Produção</span> 
-                                <span className="font-bold text-slate-900 text-lg">{formatCurrency(totalCost)}</span>
+                                <span className="font-bold text-slate-900 text-lg">{maskedCurrency(totalCost)}</span>
                             </li>
                         </ul>
                     </div>
+                    )}
                 </div>
             </div>
         </div>
     );
 };
-
-// ... (Rest of App component imports and setup remains similar)
 
 // --- MAIN APP COMPONENT ---
 export default function App() {
@@ -364,6 +364,10 @@ export default function App() {
   // Role Management
   const [userRole, setUserRole] = useState<UserRole>('admin');
   const [effectiveUserId, setEffectiveUserId] = useState<string | null>(null);
+  const [showPrices, setShowPrices] = useState(true); // Default true for admin
+
+  // Settings Tab State
+  const [settingsTab, setSettingsTab] = useState<'team' | 'categories'>('team');
 
   // Data State
   const [ingredients, setIngredients] = useState<Ingredient[]>([]);
@@ -413,8 +417,13 @@ export default function App() {
   const [inviteEmail, setInviteEmail] = useState("");
 
   // --- HELPER COMPONENT FOR PERMISSIONS ---
-  const Restricted = ({ children, fallback = null }: { children: React.ReactNode, fallback?: React.ReactNode }) => {
+  const Restricted = ({ children, fallback = null }: { children?: React.ReactNode, fallback?: React.ReactNode }) => {
       return userRole === 'admin' ? <>{children}</> : <>{fallback}</>;
+  };
+
+  const maskedCurrency = (val: number | undefined | null) => {
+      if (!showPrices || val === undefined || val === null || isNaN(val)) return '---';
+      return formatCurrency(val);
   };
 
   // --- INITIALIZATION ---
@@ -438,7 +447,7 @@ export default function App() {
       const userId = sessionData.user.id;
       const userEmail = sessionData.user.email;
 
-      // 1. First attempt: Check if user is linked by ID (already established)
+      // 1. First attempt: Check if user is linked by ID
       let { data: teamData } = await supabase.from('team_members').select('*').eq('member_user_id', userId).single();
       
       // 2. Second attempt: Check if there is a PENDING invite by email
@@ -446,10 +455,9 @@ export default function App() {
           const { data: pendingInvite } = await supabase.from('team_members').select('*').eq('member_email', userEmail).single();
           
           if (pendingInvite) {
-              // Found a pending invite! Claim it by updating the member_user_id
               const { error } = await supabase.from('team_members').update({ member_user_id: userId }).eq('id', pendingInvite.id);
               if (!error) {
-                  teamData = pendingInvite; // treat as found
+                  teamData = pendingInvite;
               }
           }
       }
@@ -457,10 +465,13 @@ export default function App() {
       if (teamData) {
           setUserRole('kitchen_manager');
           setEffectiveUserId(teamData.owner_user_id);
-          setView('ingredients'); // Redirect kitchen manager to ingredients
+          // Set price visibility based on DB permission
+          setShowPrices(!!teamData.can_view_prices);
+          setView('ingredients');
       } else {
           setUserRole('admin');
           setEffectiveUserId(userId);
+          setShowPrices(true);
       }
       setLoading(false);
   };
@@ -468,10 +479,8 @@ export default function App() {
   // --- KEYBOARD SHORTCUTS ---
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
-        // Only active in recipe editor
         if (view !== 'recipe-editor') return;
         
-        // Focus Quick Add on shortcuts
         if (e.altKey && (e.key === 'i' || e.key === 'I')) {
             e.preventDefault();
             setQuickAddForm(prev => ({ ...prev, type: 'ingredient' }));
@@ -489,7 +498,7 @@ export default function App() {
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [view]);
 
-  // ... (Data Fetching, Delete, Selection, Calculation Logic same as before) ...
+  // ... (Data Fetching logic)
   const fetchData = async () => {
     if (!effectiveUserId) return;
     
@@ -509,7 +518,7 @@ export default function App() {
     if(catData) setCategories(catData.map(c => c.name));
     else setCategories(['Prato Principal', 'Entrada', 'Sobremesa', 'Drink', 'Bebida Não Alcoólica', 'Base/Molho']);
 
-    // Admin Only Data
+    // Admin Only Data (BUT loaded for Manager context too if permissions allow logic extensions in future)
     if (userRole === 'admin') {
         const { data: expData } = await supabase.from('fixed_expenses').select('*').eq('user_id', effectiveUserId).order('year', {ascending:false}).order('month', {ascending:false});
         if(expData) setExpenses(expData);
@@ -547,7 +556,7 @@ export default function App() {
       else setSelectedIds(new Set(ids));
   };
 
-  const confirmDelete = (type: 'ingredients' | 'recipes' | 'expenses' | 'categories', ids: string[], isBulk = false) => {
+  const confirmDelete = (type: 'ingredients' | 'recipes' | 'expenses' | 'categories' | 'team_members', ids: string[], isBulk = false) => {
       let title = '';
       let message = '';
       const count = ids.length;
@@ -563,6 +572,9 @@ export default function App() {
       } else if (type === 'categories') {
           title = 'Excluir Categoria?';
           message = 'Deseja remover esta categoria?';
+      } else if (type === 'team_members') {
+          title = 'Remover Membro?';
+          message = 'O acesso será revogado imediatamente.';
       }
       setDeleteModal({ open: true, title, message, isBulk, ids, type });
   };
@@ -576,16 +588,11 @@ export default function App() {
           else alert("Erro ao excluir: " + error.message);
       } else {
           setSelectedIds(new Set());
-          if (type === 'ingredients') {
-              setIngredients(prev => prev.filter(i => !ids.includes(i.id)));
-              if(ingForm.id && ids.includes(ingForm.id)) setIngForm({ unit: 'kg', package_qty: 1, yield_factor: 100 });
-          } else if (type === 'recipes') {
-              setRecipes(prev => prev.filter(r => !ids.includes(r.id!)));
-          } else if (type === 'expenses') {
-              setExpenses(prev => prev.filter(e => !ids.includes(e.id)));
-          } else if (type === 'categories') {
-              setCategories(prev => prev.filter(c => !ids.includes(c)));
-          }
+          if (type === 'ingredients') setIngredients(prev => prev.filter(i => !ids.includes(i.id)));
+          else if (type === 'recipes') setRecipes(prev => prev.filter(r => !ids.includes(r.id!)));
+          else if (type === 'expenses') setExpenses(prev => prev.filter(e => !ids.includes(e.id)));
+          else if (type === 'categories') setCategories(prev => prev.filter(c => !ids.includes(c)));
+          else if (type === 'team_members') setTeamMembers(prev => prev.filter(m => !ids.includes(m.id)));
       }
       setIsDeleting(false);
       setDeleteModal(prev => ({ ...prev, open: false }));
@@ -637,23 +644,26 @@ export default function App() {
 
   const handleInviteUser = async () => {
       if (!inviteEmail) return;
-      // In a real app, this would send an email. For now, we just create the record.
-      // We check if a user with this email exists in Supabase Auth (mock check for this context)
-      // Since we can't query auth.users, we just insert into team_members pending.
-      
       const { error } = await supabase.from('team_members').insert({
           owner_user_id: session.user.id,
           member_email: inviteEmail,
           role: 'kitchen_manager',
-          member_user_id: null // Pending until they sign up/login matches
+          member_user_id: null,
+          can_view_prices: false
       });
 
       if (error) alert('Erro ao convidar: ' + error.message);
       else {
-          alert('Convite registrado! Peça para o usuário criar uma conta com este e-mail para ter acesso imediato.');
+          alert('Convite registrado!');
           setInviteEmail("");
           fetchData();
       }
+  };
+
+  const handleUpdatePermission = async (memberId: string, canView: boolean) => {
+      const { error } = await supabase.from('team_members').update({ can_view_prices: canView }).eq('id', memberId);
+      if (error) alert('Erro ao atualizar: ' + error.message);
+      else fetchData();
   };
 
   const parseImportData = (text: string) => {
@@ -949,12 +959,12 @@ export default function App() {
   if (!session) return <Login />;
   
   if (view === 'print-preview' && currentRecipe) {
-      return <PrintPreviewComponent recipe={currentRecipe} ingredients={ingredients} recipes={recipes} onClose={() => setView('recipe-editor')} />;
+      return <PrintPreviewComponent recipe={currentRecipe} ingredients={ingredients} recipes={recipes} onClose={() => setView('recipe-editor')} showPrices={showPrices} />;
   }
 
   return (
     <div className="flex h-screen w-full bg-slate-50 overflow-hidden font-sans text-slate-900">
-        {/* ... (Modals remain the same) ... */}
+        {/* ... (Modals remain similar) ... */}
         {showYieldCalc && (
             <div className="fixed inset-0 z-[110] bg-slate-900/60 flex items-center justify-center p-4 backdrop-blur-sm">
                 <div className="bg-white p-6 rounded-xl shadow-2xl w-full max-w-sm animate-in zoom-in-95">
@@ -1126,8 +1136,10 @@ export default function App() {
                     <div className="my-4 border-t border-slate-800/50 mx-2"></div>
                     {isSidebarOpen && <div className="px-4 text-[10px] font-bold text-slate-500 uppercase tracking-widest mb-2">Financeiro</div>}
                     <NavButton icon={TrendingUp} label="Despesas Fixas" target="fixed-expenses" />
-                    <NavButton icon={Settings} label="Configurações" target="settings" />
                 </Restricted>
+                <div className="my-4 border-t border-slate-800/50 mx-2"></div>
+                {isSidebarOpen && <div className="px-4 text-[10px] font-bold text-slate-500 uppercase tracking-widest mb-2">Sistema</div>}
+                <NavButton icon={Settings} label="Configurações" target="settings" />
             </div>
             <div className="p-4 border-t border-slate-800">
                 {userRole === 'kitchen_manager' && isSidebarOpen && (
@@ -1150,6 +1162,7 @@ export default function App() {
             <div className="flex-1 overflow-y-auto">
             {view === 'ingredients' && (
                 <div className="p-6 md:p-10 w-full max-w-7xl mx-auto">
+                    {/* ... (Existing Ingredient Header/Search/Buttons) ... */}
                     <header className="flex flex-col md:flex-row justify-between items-start md:items-center mb-8 gap-4">
                         <div><h1 className="text-3xl font-bold text-slate-900 tracking-tight">Insumos</h1><p className="text-slate-500 mt-1">Gerencie os custos de matéria-prima.</p></div>
                         <div className="flex gap-3">
@@ -1164,7 +1177,13 @@ export default function App() {
                             <div className="space-y-4" id="ing-form">
                                 <InputGroup label="Nome do Item"><StyledInput placeholder="Ex: Filé Mignon" value={ingForm.name || ''} onChange={e => setIngForm({...ingForm, name: e.target.value})} autoFocus/></InputGroup>
                                 <div className="grid grid-cols-2 gap-4">
-                                    <InputGroup label="Preço Pago (R$)"><StyledInput type="text" inputMode="decimal" placeholder="0,00" value={ingForm.price !== undefined ? ingForm.price.toString().replace('.', ',') : ''} onChange={e => setIngForm({...ingForm, price: parseInputNumber(e.target.value)})} /></InputGroup>
+                                    <InputGroup label="Preço Pago (R$)">
+                                        {showPrices ? (
+                                            <StyledInput type="text" inputMode="decimal" placeholder="0,00" value={ingForm.price !== undefined ? ingForm.price.toString().replace('.', ',') : ''} onChange={e => setIngForm({...ingForm, price: parseInputNumber(e.target.value)})} />
+                                        ) : (
+                                            <div className="w-full bg-slate-100 border border-slate-200 text-slate-400 text-sm rounded-lg px-3 py-2.5 flex items-center gap-2 cursor-not-allowed"><Lock size={14}/> Oculto</div>
+                                        )}
+                                    </InputGroup>
                                     <InputGroup label="Unidade Compra"><StyledSelect value={ingForm.unit} onChange={e => setIngForm({...ingForm, unit: e.target.value})}>{UNITS.map(u => <option key={u} value={u}>{u}</option>)}</StyledSelect></InputGroup>
                                 </div>
                                 <div className="grid grid-cols-2 gap-4">
@@ -1179,7 +1198,7 @@ export default function App() {
                             </div>
                             <div className="mt-8 bg-slate-50 p-4 rounded-lg border border-slate-200">
                                 <div className="text-xs font-bold text-slate-500 uppercase mb-1">Custo Real Calculado</div>
-                                <div className="text-2xl font-bold text-emerald-600">{formatCurrency(calculateRealCost(Number(ingForm.price), Number(ingForm.package_qty), Number(ingForm.yield_factor)))} <span className="text-sm text-slate-400 font-medium">/ {ingForm.unit}</span></div>
+                                <div className="text-2xl font-bold text-emerald-600">{maskedCurrency(calculateRealCost(Number(ingForm.price), Number(ingForm.package_qty), Number(ingForm.yield_factor)))} <span className="text-sm text-slate-400 font-medium">/ {ingForm.unit}</span></div>
                             </div>
                             <div className="mt-6 flex gap-3">
                                 {ingForm.id && <button onClick={() => setIngForm({unit: 'kg', package_qty: 1, yield_factor: 100})} className="flex-1 py-2.5 border border-slate-200 text-slate-600 rounded-lg hover:bg-slate-50 font-medium">Cancelar</button>}
@@ -1193,13 +1212,13 @@ export default function App() {
                                         <tr key={ing.id} className={`hover:bg-slate-50 transition-colors cursor-pointer group ${selectedIds.has(ing.id) ? 'bg-blue-50/50' : ''}`} onClick={() => { setIngForm({...ing, yield_factor: ing.yield_factor * 100}); window.scrollTo({top:0, behavior:'smooth'}); }}>
                                             <td className="p-4 w-10" onClick={(e) => { e.stopPropagation(); toggleSelection(ing.id); }}>{selectedIds.has(ing.id) ? <CheckSquare size={20} className="text-emerald-500"/> : <Square size={20} className="text-slate-300 group-hover:text-slate-400"/>}</td>
                                             <td className="p-4 pl-0 font-medium text-slate-800">{ing.name}</td>
-                                            <td className="p-4 text-slate-500">{formatCurrency(ing.price)} <span className="text-xs">/ {ing.package_qty}{ing.unit}</span></td>
+                                            <td className="p-4 text-slate-500">{maskedCurrency(ing.price)} <span className="text-xs">/ {ing.package_qty}{ing.unit}</span></td>
                                             <td className="p-4 text-center"><Badge color={ing.yield_factor < 1 ? "orange" : "blue"}>{Math.round(ing.yield_factor * 100)}%</Badge></td>
-                                            <td className="p-4 text-right font-bold text-slate-700">{formatCurrency(ing.cost_per_unit)}</td>
+                                            <td className="p-4 text-right font-bold text-slate-700">{maskedCurrency(ing.cost_per_unit)}</td>
                                             <td className="p-4 text-center pr-6"><button onClick={(e) => { e.stopPropagation(); confirmDelete('ingredients', [ing.id]); }} className="text-slate-300 hover:text-red-500 transition-colors p-2 rounded-full hover:bg-red-50 z-10 relative"><Trash2 size={16}/></button></td>
                                         </tr>))}</tbody></table></div></Card></div></div>)}
 
-            {/* ... (View: Recipes, Drinks, Sub-recipes - No changes here, kept as previous) */}
+            {/* ... (View: Recipes, Drinks, Sub-recipes) */}
             {['recipes', 'drinks', 'sub_recipes'].includes(view) && (
                 <div className="p-6 md:p-10 w-full max-w-7xl mx-auto">
                     <header className="flex flex-col md:flex-row justify-between items-start md:items-center mb-8 gap-4">
@@ -1219,17 +1238,15 @@ export default function App() {
                                         {r.status === 'inactive' && <div className="absolute top-0 right-0 bg-slate-100 text-slate-500 text-[10px] font-bold px-3 py-1 rounded-bl-lg">INATIVO</div>}
                                         <div className="mb-4"><span className="text-[10px] font-bold uppercase tracking-wider text-slate-400 mb-1 block">{r.category}</span><h3 className="font-bold text-lg text-slate-800 leading-tight group-hover:text-emerald-700 transition-colors">{r.name}</h3></div>
                                         <div className="flex items-center gap-4 text-xs text-slate-500 font-medium mb-6"><span className="flex items-center gap-1 bg-slate-50 px-2 py-1 rounded"><History size={12}/> v{r.version}</span><span className="flex items-center gap-1 bg-slate-50 px-2 py-1 rounded"><Scale size={12}/> {r.portions} {isSub ? r.unit : 'un'}</span></div>
-                                        <div className="mt-auto pt-4 border-t border-slate-100">{isSub ? (<div className="flex justify-between items-center"><span className="text-xs font-bold text-orange-600 uppercase bg-orange-50 px-2 py-1 rounded">Custo / {r.unit}</span><span className="font-mono font-bold text-slate-700">{formatCurrency(costs.costPerPortion)}</span></div>) : (<div className="flex justify-between items-end">
-                                            <Restricted fallback={<div className="bg-slate-100 px-2 py-1 rounded text-[10px] font-bold text-slate-400 flex items-center gap-1"><Lock size={10}/> CUSTOS OCULTOS</div>}>
-                                                <div><p className="text-[10px] text-slate-400 uppercase font-bold">Preço Venda</p><p className="font-bold text-slate-800 text-lg">{formatCurrency(r.final_price)}</p></div><div className="text-right"><p className="text-[10px] text-slate-400 uppercase font-bold">Lucro</p><p className={`font-mono font-bold ${costs.profit > 0 ? 'text-emerald-600' : 'text-red-500'}`}>{formatCurrency(costs.profit)}</p></div>
-                                            </Restricted>
+                                        <div className="mt-auto pt-4 border-t border-slate-100">{isSub ? (<div className="flex justify-between items-center"><span className="text-xs font-bold text-orange-600 uppercase bg-orange-50 px-2 py-1 rounded">Custo / {r.unit}</span><span className="font-mono font-bold text-slate-700">{maskedCurrency(costs.costPerPortion)}</span></div>) : (<div className="flex justify-between items-end">
+                                            <div><p className="text-[10px] text-slate-400 uppercase font-bold">Preço Venda</p><p className="font-bold text-slate-800 text-lg">{maskedCurrency(r.final_price)}</p></div><div className="text-right"><p className="text-[10px] text-slate-400 uppercase font-bold">Lucro</p><p className={`font-mono font-bold ${!showPrices ? 'text-slate-300' : costs.profit > 0 ? 'text-emerald-600' : 'text-red-500'}`}>{maskedCurrency(costs.profit)}</p></div>
                                         </div>)}</div>
                                      </div>
                                 </Card>)
                         })}
                     </div></div>)}
 
-            {/* ... (View: Dashboard, Fixed Expenses, Categories, Reports - No changes) ... */}
+            {/* ... (View: Dashboard, Fixed Expenses, Reports - No changes) ... */}
             {view === 'dashboard' && (
                 <div className="p-6 md:p-10 w-full max-w-[1600px] mx-auto">
                      <div className="mb-8"><h1 className="text-3xl font-bold text-slate-900 flex items-center gap-3"><Activity className="text-emerald-600"/> Dashboard</h1><p className="text-slate-500 mt-1 ml-11">Visão geral da saúde financeira do seu cardápio.</p></div>
@@ -1243,62 +1260,114 @@ export default function App() {
                          return (
                              <div className="space-y-8">
                                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-                                    <Card className="p-6 border-l-4 border-l-emerald-500"><div className="text-slate-500 text-xs font-bold uppercase tracking-wider mb-2">Margem Média</div><div className={`text-4xl font-bold ${avgMargin < 20 ? 'text-red-500' : 'text-emerald-600'}`}>{avgMargin.toFixed(1)}%</div><div className="mt-2 text-xs text-slate-400">Objetivo: &gt;25%</div></Card>
-                                    <Card className="p-6 border-l-4 border-l-blue-500"><div className="text-slate-500 text-xs font-bold uppercase tracking-wider mb-2">Lucro Médio / Prato</div><div className="text-4xl font-bold text-slate-800">{formatCurrency(avgProfit)}</div><div className="mt-2 text-xs text-slate-400">Contribuição por venda</div></Card>
-                                    <Card className="p-6 border-l-4 border-l-orange-500"><div className="text-slate-500 text-xs font-bold uppercase tracking-wider mb-2">Impostos Est.</div><div className="text-4xl font-bold text-orange-600">{formatCurrency(stats.reduce((a,b)=>a+b.tax,0))}</div><div className="mt-2 text-xs text-slate-400">Baseado no mix atual</div></Card>
+                                    <Card className="p-6 border-l-4 border-l-emerald-500"><div className="text-slate-500 text-xs font-bold uppercase tracking-wider mb-2">Margem Média</div><div className={`text-4xl font-bold ${!showPrices ? 'text-slate-400' : avgMargin < 20 ? 'text-red-500' : 'text-emerald-600'}`}>{showPrices ? avgMargin.toFixed(1) + '%' : '---'}</div><div className="mt-2 text-xs text-slate-400">Objetivo: &gt;25%</div></Card>
+                                    <Card className="p-6 border-l-4 border-l-blue-500"><div className="text-slate-500 text-xs font-bold uppercase tracking-wider mb-2">Lucro Médio / Prato</div><div className="text-4xl font-bold text-slate-800">{maskedCurrency(avgProfit)}</div><div className="mt-2 text-xs text-slate-400">Contribuição por venda</div></Card>
+                                    <Card className="p-6 border-l-4 border-l-orange-500"><div className="text-slate-500 text-xs font-bold uppercase tracking-wider mb-2">Impostos Est.</div><div className="text-4xl font-bold text-orange-600">{maskedCurrency(stats.reduce((a,b)=>a+b.tax,0))}</div><div className="mt-2 text-xs text-slate-400">Baseado no mix atual</div></Card>
                                     <Card className="p-6 border-l-4 border-l-purple-500"><div className="text-slate-500 text-xs font-bold uppercase tracking-wider mb-2">Itens Ativos</div><div className="text-4xl font-bold text-slate-800">{activeRecs.length}</div><div className="mt-2 text-xs text-slate-400">Produtos no cardápio</div></Card>
                                 </div>
                                 <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-                                    <Card className="p-6 h-[400px] flex flex-col"><h3 className="font-bold text-lg text-slate-800 mb-6 flex items-center gap-2"><PieChart size={20} className="text-slate-400"/> Destino da Receita</h3><div className="flex-1 min-h-0"><ResponsiveContainer width="100%" height="100%"><RePieChart><Pie data={pieData} cx="50%" cy="50%" innerRadius={80} outerRadius={110} paddingAngle={2} dataKey="value" stroke="none">{pieData.map((entry, index) => <Cell key={`cell-${index}`} fill={entry.color} />)}</Pie><ReTooltip formatter={(value:number) => formatCurrency(value)} contentStyle={{borderRadius:'8px', border:'none', boxShadow:'0 4px 12px rgba(0,0,0,0.1)'}} /><Legend verticalAlign="bottom" height={36}/></RePieChart></ResponsiveContainer></div></Card>
+                                    <Card className="p-6 h-[400px] flex flex-col"><h3 className="font-bold text-lg text-slate-800 mb-6 flex items-center gap-2"><PieChart size={20} className="text-slate-400"/> Destino da Receita</h3><div className="flex-1 min-h-0"><ResponsiveContainer width="100%" height="100%"><RePieChart><Pie data={pieData} cx="50%" cy="50%" innerRadius={80} outerRadius={110} paddingAngle={2} dataKey="value" stroke="none">{pieData.map((entry, index) => <Cell key={`cell-${index}`} fill={entry.color} />)}</Pie><ReTooltip formatter={(value:number) => showPrices ? formatCurrency(value) : '---'} contentStyle={{borderRadius:'8px', border:'none', boxShadow:'0 4px 12px rgba(0,0,0,0.1)'}} /><Legend verticalAlign="bottom" height={36}/></RePieChart></ResponsiveContainer></div></Card>
                                     <Card className="p-6 h-[400px] flex flex-col"><h3 className="font-bold text-lg text-slate-800 mb-6 flex items-center gap-2"><Scale size={20} className="text-slate-400"/> Distribuição de Margens</h3><div className="flex-1 min-h-0"><ResponsiveContainer width="100%" height="100%"><BarChart data={barData} margin={{top: 20, right: 30, left: 20, bottom: 5}}><CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9"/><XAxis dataKey="name" axisLine={false} tickLine={false} tick={{fontSize: 12, fill: '#64748b'}} dy={10} /><YAxis axisLine={false} tickLine={false} tick={{fontSize: 12, fill: '#64748b'}} /><ReTooltip cursor={{fill: '#f8fafc'}} contentStyle={{borderRadius:'8px', border:'none', boxShadow:'0 4px 12px rgba(0,0,0,0.1)'}} /><Bar dataKey="count" radius={[4, 4, 0, 0]} barSize={60} /></BarChart></ResponsiveContainer></div></Card>
                                 </div></div> )})()}</div>)}
 
             {view === 'fixed-expenses' && (
                 <div className="p-6 md:p-10 w-full max-w-5xl mx-auto"><h1 className="text-3xl font-bold text-slate-900 mb-8 flex items-center gap-3"><TrendingUp className="text-amber-500"/> Despesas Fixas</h1>
+                    {showPrices && (
                     <Card className="p-6 mb-8 bg-slate-50 border-amber-200"><h3 className="font-bold text-slate-800 mb-4 flex items-center gap-2">Registrar Novo Período</h3><div className="flex flex-col md:flex-row gap-4 items-end"><InputGroup label="Mês" className="flex-1"><StyledSelect value={newExpense.month} onChange={e => setNewExpense({...newExpense, month: e.target.value})}>{Array.from({length:12}, (_,i) => <option key={i+1} value={i+1}>{formatMonth(i+1)}</option>)}</StyledSelect></InputGroup><InputGroup label="Ano" className="w-24"><StyledInput type="text" inputMode="numeric" value={newExpense.year} onChange={e => setNewExpense({...newExpense, year: e.target.value})} /></InputGroup><InputGroup label="Total Despesas (R$)" className="flex-1"><StyledInput type="text" inputMode="decimal" value={newExpense.total} onChange={e => setNewExpense({...newExpense, total: e.target.value})} /></InputGroup><InputGroup label="Pratos Vendidos" className="flex-1"><StyledInput type="text" inputMode="decimal" value={newExpense.dishes} onChange={e => setNewExpense({...newExpense, dishes: e.target.value})} /></InputGroup><button onClick={async () => { const cost = parseInputNumber(newExpense.total) / parseInputNumber(newExpense.dishes); await supabase.from('fixed_expenses').insert({ user_id: effectiveUserId, month: Number(newExpense.month), year: Number(newExpense.year), total_expenses: parseInputNumber(newExpense.total), total_dishes_sold: parseInputNumber(newExpense.dishes), cost_per_dish: cost }); setNewExpense({...newExpense, total: '', dishes: ''}); }} className="bg-amber-500 hover:bg-amber-600 text-white px-6 py-2.5 rounded-lg font-bold shadow-lg shadow-amber-500/20 mb-[1px]">Salvar</button></div></Card>
-                    <Card><table className="w-full text-left text-sm"><thead className="bg-slate-50 text-slate-500 uppercase text-xs border-b"><tr><th className="p-4 pl-6">Período</th><th className="p-4 text-right">Despesas Totais</th><th className="p-4 text-right">Vendas</th><th className="p-4 text-right">Custo Fixo / Prato</th><th className="p-4"></th></tr></thead><tbody className="divide-y divide-slate-100">{expenses.map(exp => (<tr key={exp.id} className="hover:bg-slate-50"><td className="p-4 pl-6 font-bold text-slate-700">{formatMonth(exp.month)} <span className="text-slate-400 font-normal">/ {exp.year}</span></td><td className="p-4 text-right">{formatCurrency(exp.total_expenses)}</td><td className="p-4 text-right">{exp.total_dishes_sold}</td><td className="p-4 text-right text-amber-600 font-bold bg-amber-50/50">{formatCurrency(exp.cost_per_dish)}</td><td className="p-4 text-center"><button onClick={() => confirmDelete('expenses', [exp.id])} className="text-slate-300 hover:text-red-500"><Trash2 size={16}/></button></td></tr>))}</tbody></table></Card></div>)}
+                    )}
+                    <Card><table className="w-full text-left text-sm"><thead className="bg-slate-50 text-slate-500 uppercase text-xs border-b"><tr><th className="p-4 pl-6">Período</th><th className="p-4 text-right">Despesas Totais</th><th className="p-4 text-right">Vendas</th><th className="p-4 text-right">Custo Fixo / Prato</th><th className="p-4"></th></tr></thead><tbody className="divide-y divide-slate-100">{expenses.map(exp => (<tr key={exp.id} className="hover:bg-slate-50"><td className="p-4 pl-6 font-bold text-slate-700">{formatMonth(exp.month)} <span className="text-slate-400 font-normal">/ {exp.year}</span></td><td className="p-4 text-right">{maskedCurrency(exp.total_expenses)}</td><td className="p-4 text-right">{exp.total_dishes_sold}</td><td className="p-4 text-right text-amber-600 font-bold bg-amber-50/50">{maskedCurrency(exp.cost_per_dish)}</td><td className="p-4 text-center"><button onClick={() => confirmDelete('expenses', [exp.id])} className="text-slate-300 hover:text-red-500"><Trash2 size={16}/></button></td></tr>))}</tbody></table></Card></div>)}
 
-            {view === 'categories' && (<div className="p-10 max-w-2xl mx-auto"><h1 className="text-3xl font-bold text-slate-900 mb-8">Gerenciar Categorias</h1><Card className="p-6 mb-6"><div className="flex gap-4"><StyledInput placeholder="Nova Categoria (ex: Entradas Frias)" value={newCatInput} onChange={e => setNewCatInput(e.target.value)} /><button onClick={async () => { if(newCatInput) { await supabase.from('categories').insert({user_id: effectiveUserId, name: newCatInput}); setNewCatInput(''); }}} className="bg-slate-900 text-white px-6 rounded-lg font-bold">Adicionar</button></div></Card><div className="grid grid-cols-1 md:grid-cols-2 gap-3">{categories.map(cat => (<Card key={cat} className="p-4 flex justify-between items-center group"><span className="font-medium text-slate-700">{cat}</span><button onClick={() => confirmDelete('categories', [cat])} className="text-slate-300 hover:text-red-500 opacity-0 group-hover:opacity-100 transition-opacity"><Trash2 size={16}/></button></Card>))}</div></div>)}
-            
-            {view === 'settings' && userRole === 'admin' && (
-                <div className="p-10 max-w-2xl mx-auto">
+            {view === 'settings' && (
+                <div className="p-10 max-w-4xl mx-auto">
                     <h1 className="text-3xl font-bold text-slate-900 mb-8 flex items-center gap-3"><Settings className="text-slate-600"/> Configurações</h1>
-                    <Card className="p-6 mb-8">
-                        <h3 className="font-bold text-slate-800 mb-4 flex items-center gap-2"><Users className="text-emerald-600"/> Equipe & Acessos</h3>
-                        <p className="text-sm text-slate-500 mb-4">Convide gerentes de cozinha para acessar fichas técnicas e insumos sem ver dados financeiros sensíveis.</p>
-                        <div className="flex gap-3 items-end mb-6">
-                            <InputGroup label="Email do Gerente" className="flex-1">
-                                <StyledInput placeholder="email@exemplo.com" value={inviteEmail} onChange={e => setInviteEmail(e.target.value)} />
-                            </InputGroup>
-                            <button onClick={handleInviteUser} className="bg-slate-900 text-white px-4 py-2.5 rounded-lg font-bold hover:bg-slate-800">Convidar</button>
-                        </div>
-                        <div className="space-y-3">
-                            {teamMembers.map(member => (
-                                <div key={member.id} className="flex justify-between items-center p-3 bg-slate-50 rounded-lg border border-slate-100">
-                                    <div>
-                                        <span className="font-bold text-slate-700 block">{member.member_email}</span>
-                                        <span className="text-xs text-slate-400 uppercase font-bold flex items-center gap-1">
-                                            {member.member_user_id ? <span className="text-emerald-600">● Ativo</span> : <span className="text-orange-500">○ Pendente</span>} • {member.role === 'kitchen_manager' ? 'Gerente de Cozinha' : member.role}
-                                        </span>
-                                    </div>
-                                    <button className="text-xs text-red-500 hover:underline">Remover</button>
+                    
+                    <div className="flex gap-4 mb-6 border-b border-slate-200">
+                        <button onClick={() => setSettingsTab('team')} className={`px-4 py-2 font-bold text-sm transition-colors border-b-2 ${settingsTab === 'team' ? 'border-emerald-600 text-emerald-600' : 'border-transparent text-slate-500 hover:text-slate-700'}`}>Equipe</button>
+                        <button onClick={() => setSettingsTab('categories')} className={`px-4 py-2 font-bold text-sm transition-colors border-b-2 ${settingsTab === 'categories' ? 'border-emerald-600 text-emerald-600' : 'border-transparent text-slate-500 hover:text-slate-700'}`}>Categorias</button>
+                    </div>
+
+                    {settingsTab === 'team' && (
+                        userRole === 'admin' ? (
+                            <Card className="p-6">
+                                <h3 className="font-bold text-slate-800 mb-4 flex items-center gap-2"><Users className="text-emerald-600"/> Equipe & Acessos</h3>
+                                <p className="text-sm text-slate-500 mb-4">Convide gerentes de cozinha e controle o acesso a dados financeiros.</p>
+                                <div className="flex gap-3 items-end mb-6">
+                                    <InputGroup label="Email do Gerente" className="flex-1">
+                                        <StyledInput placeholder="email@exemplo.com" value={inviteEmail} onChange={e => setInviteEmail(e.target.value)} />
+                                    </InputGroup>
+                                    <button onClick={handleInviteUser} className="bg-slate-900 text-white px-4 py-2.5 rounded-lg font-bold hover:bg-slate-800">Convidar</button>
                                 </div>
-                            ))}
-                            {teamMembers.length === 0 && <p className="text-center text-slate-400 text-sm italic">Nenhum membro na equipe.</p>}
+                                <div className="space-y-3">
+                                    {teamMembers.map(member => (
+                                        <div key={member.id} className="flex justify-between items-center p-3 bg-slate-50 rounded-lg border border-slate-100">
+                                            <div>
+                                                <span className="font-bold text-slate-700 block">{member.member_email}</span>
+                                                <span className="text-xs text-slate-400 uppercase font-bold flex items-center gap-1">
+                                                    {member.member_user_id ? <span className="text-emerald-600">● Ativo</span> : <span className="text-orange-500">○ Pendente</span>}
+                                                </span>
+                                            </div>
+                                            <div className="flex items-center gap-3">
+                                                <div className="flex items-center gap-2 bg-white border border-slate-200 rounded-full px-1 py-1 pr-3">
+                                                    <button onClick={() => handleUpdatePermission(member.id, !member.can_view_prices)} className={`p-1.5 rounded-full transition-colors ${member.can_view_prices ? 'bg-emerald-100 text-emerald-600' : 'bg-slate-100 text-slate-400'}`}>
+                                                        {member.can_view_prices ? <Eye size={14}/> : <EyeOff size={14}/>}
+                                                    </button>
+                                                    <span className="text-xs font-bold text-slate-500">{member.can_view_prices ? 'Ver Preços' : 'Sem Preços'}</span>
+                                                </div>
+                                                <button onClick={() => confirmDelete('team_members', [member.id])} className="text-xs text-red-500 hover:text-red-700 bg-red-50 hover:bg-red-100 px-3 py-1.5 rounded-md font-bold transition-colors">Remover</button>
+                                            </div>
+                                        </div>
+                                    ))}
+                                    {teamMembers.length === 0 && <p className="text-center text-slate-400 text-sm italic">Nenhum membro na equipe.</p>}
+                                </div>
+                            </Card>
+                        ) : (
+                            <Card className="p-8 text-center max-w-md mx-auto">
+                                <div className="bg-blue-100 p-4 rounded-full w-fit mx-auto mb-6">
+                                    <UserCheck size={48} className="text-blue-600"/>
+                                </div>
+                                <h3 className="text-xl font-bold text-slate-900 mb-2">Seu Acesso</h3>
+                                <p className="text-slate-500 mb-6">Você está conectado como membro da equipe.</p>
+                                <div className="bg-slate-50 p-4 rounded-lg border border-slate-200 inline-flex flex-col gap-2 w-full text-left">
+                                    <div><span className="text-xs text-slate-400 uppercase font-bold">Email</span><div className="font-bold text-slate-800">{session?.user.email}</div></div>
+                                    <div className="h-px bg-slate-200 my-1"></div>
+                                    <div><span className="text-xs text-slate-400 uppercase font-bold">Permissões</span><div className="font-bold text-slate-800 flex items-center gap-2">{showPrices ? <span className="text-emerald-600 flex items-center gap-1"><Eye size={14}/> Visualizar Preços</span> : <span className="text-slate-500 flex items-center gap-1"><EyeOff size={14}/> Preços Ocultos</span>}</div></div>
+                                </div>
+                            </Card>
+                        )
+                    )}
+
+                    {settingsTab === 'categories' && (
+                        <div className="space-y-6">
+                            <Card className="p-6">
+                                <h3 className="font-bold text-slate-800 mb-4 flex items-center gap-2"><Tag className="text-blue-600"/> Adicionar Categoria</h3>
+                                <div className="flex gap-4">
+                                    <StyledInput placeholder="Nova Categoria (ex: Entradas Frias)" value={newCatInput} onChange={e => setNewCatInput(e.target.value)} />
+                                    <button onClick={async () => { if(newCatInput) { await supabase.from('categories').insert({user_id: effectiveUserId, name: newCatInput}); setNewCatInput(''); fetchData(); }}} className="bg-slate-900 text-white px-6 rounded-lg font-bold hover:bg-slate-800 transition-colors">Adicionar</button>
+                                </div>
+                            </Card>
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                                {categories.map(cat => (
+                                    <Card key={cat} className="p-4 flex justify-between items-center group">
+                                        <span className="font-medium text-slate-700">{cat}</span>
+                                        <button onClick={() => confirmDelete('categories', [cat])} className="text-slate-300 hover:text-red-500 opacity-0 group-hover:opacity-100 transition-opacity"><Trash2 size={16}/></button>
+                                    </Card>
+                                ))}
+                            </div>
                         </div>
-                    </Card>
+                    )}
                 </div>
             )}
 
             {view === 'reports' && (
                 <div className="p-6 md:p-10 w-full max-w-6xl mx-auto"><h1 className="text-3xl font-bold text-slate-900 mb-8 flex items-center gap-3"><BarChart2 className="text-blue-600"/> Relatórios Avançados</h1>
                     {(() => { const activeRecs = recipes.filter(r => r.type !== 'sub_recipe' && r.status === 'active').map(r => ({...r, stats: getRecipeCosts(r)})).sort((a,b) => b.stats.profit - a.stats.profit); return (
-                            <div className="grid grid-cols-1 md:grid-cols-3 gap-8"><Card className="col-span-2 p-6"><h3 className="font-bold text-lg text-slate-800 mb-6 flex items-center gap-2"><Target size={20} className="text-emerald-500"/> Top Performance - Maior Lucro</h3><div className="space-y-4">{activeRecs.slice(0,5).map((r, i) => (<div key={r.id} className="flex justify-between items-center py-3 border-b border-slate-50 hover:bg-slate-50 px-2 rounded transition-colors"><div className="flex items-center gap-4"><span className={`text-xs font-bold w-6 h-6 flex items-center justify-center rounded-full ${i===0 ? 'bg-yellow-100 text-yellow-700' : 'bg-slate-100 text-slate-600'}`}>{i+1}</span><div><span className="font-medium text-slate-800 block">{r.name}</span><span className="text-xs text-slate-400">{r.category}</span></div></div><div className="text-right"><div className="font-bold text-emerald-600">{formatCurrency(r.stats.profit)}</div><div className="text-xs text-slate-400">{r.stats.margin.toFixed(1)}% Margem</div></div></div>))}</div></Card>
-                                <div className="space-y-8"><Card className="p-6 text-center bg-gradient-to-br from-white to-emerald-50 border-emerald-100"><h3 className="font-bold text-slate-700 mb-2">Simulador de Faturamento</h3><p className="text-xs text-slate-400 mb-6">Projeção se vender 100 unidades de cada item ativo.</p><div className="text-4xl font-bold text-emerald-600">{formatCurrency(activeRecs.reduce((a,b) => a + (b.stats.profit * 100), 0))}</div><div className="mt-4 text-xs font-bold text-emerald-800 uppercase tracking-widest opacity-60">Lucro Líquido Projetado</div></Card></div></div>)})()}</div>)}
+                            <div className="grid grid-cols-1 md:grid-cols-3 gap-8"><Card className="col-span-2 p-6"><h3 className="font-bold text-lg text-slate-800 mb-6 flex items-center gap-2"><Target size={20} className="text-emerald-500"/> Top Performance - Maior Lucro</h3><div className="space-y-4">{activeRecs.slice(0,5).map((r, i) => (<div key={r.id} className="flex justify-between items-center py-3 border-b border-slate-50 hover:bg-slate-50 px-2 rounded transition-colors"><div className="flex items-center gap-4"><span className={`text-xs font-bold w-6 h-6 flex items-center justify-center rounded-full ${i===0 ? 'bg-yellow-100 text-yellow-700' : 'bg-slate-100 text-slate-600'}`}>{i+1}</span><div><span className="font-medium text-slate-800 block">{r.name}</span><span className="text-xs text-slate-400">{r.category}</span></div></div><div className="text-right"><div className="font-bold text-emerald-600">{maskedCurrency(r.stats.profit)}</div><div className="text-xs text-slate-400">{showPrices ? r.stats.margin.toFixed(1) + '%' : '---'} Margem</div></div></div>))}</div></Card>
+                                <div className="space-y-8"><Card className="p-6 text-center bg-gradient-to-br from-white to-emerald-50 border-emerald-100"><h3 className="font-bold text-slate-700 mb-2">Simulador de Faturamento</h3><p className="text-xs text-slate-400 mb-6">Projeção se vender 100 unidades de cada item ativo.</p><div className="text-4xl font-bold text-emerald-600">{maskedCurrency(activeRecs.reduce((a,b) => a + (b.stats.profit * 100), 0))}</div><div className="mt-4 text-xs font-bold text-emerald-800 uppercase tracking-widest opacity-60">Lucro Líquido Projetado</div></Card></div></div>)})()}</div>)}
             </div>
 
             {view === 'recipe-editor' && currentRecipe && (
                 <div className="absolute inset-0 z-50 bg-slate-50 flex flex-col h-full w-full">
+                    {/* Header and Editor content remains largely same, masked via maskedCurrency or logic below */}
                     <div className="bg-white border-b border-slate-200 px-6 py-3 flex justify-between items-center shadow-sm shrink-0">
                          <div className="flex items-center gap-4 flex-1">
                             <button onClick={() => { if(hasUnsavedChanges) setShowUnsavedModal(true); else setView(currentRecipe.type === 'drink' ? 'drinks' : currentRecipe.type === 'sub_recipe' ? 'sub_recipes' : 'recipes'); }} className="p-2 hover:bg-slate-100 rounded-lg text-slate-500 transition-colors"><ChevronLeft/></button>
@@ -1314,8 +1383,10 @@ export default function App() {
                     </div>
                     <div className="flex-1 overflow-hidden flex flex-row">
                         <div className="flex-1 overflow-y-auto p-8 space-y-8 bg-slate-50/50">
+                             {/* ... Main Editor Form ... */}
                              <div className="grid grid-cols-12 gap-6">
                                 <Card className="col-span-8 p-6 grid grid-cols-2 gap-6">
+                                    {/* Category and Portions inputs... same as before */}
                                     <InputGroup label="Categoria">
                                         <div className="flex gap-2">
                                             <StyledSelect value={currentRecipe.category} onChange={e => {setCurrentRecipe({...currentRecipe, category: e.target.value}); setHasUnsavedChanges(true);}}>
@@ -1342,8 +1413,20 @@ export default function App() {
                                 </Card>
                                 {currentRecipe.type !== 'sub_recipe' && (<Card className="col-span-4 p-6"><InputGroup label="Tempo Operacional (min)"><div className="flex gap-2"><div className="flex-1 text-center"><NumberInput placeholder="Prep" className="text-center" value={currentRecipe.operational_prep} onChange={v => {setCurrentRecipe({...currentRecipe, operational_prep: v}); setHasUnsavedChanges(true);}}/><span className="text-[10px] text-slate-400 mt-1 block">PREP</span></div><div className="flex-1 text-center"><NumberInput placeholder="Cook" className="text-center" value={currentRecipe.operational_cook} onChange={v => {setCurrentRecipe({...currentRecipe, operational_cook: v}); setHasUnsavedChanges(true);}}/><span className="text-[10px] text-slate-400 mt-1 block">FOGO</span></div><div className="flex-1 text-center"><NumberInput placeholder="Plate" className="text-center" value={currentRecipe.operational_plating} onChange={v => {setCurrentRecipe({...currentRecipe, operational_plating: v}); setHasUnsavedChanges(true);}}/><span className="text-[10px] text-slate-400 mt-1 block">MONTAGEM</span></div></div></InputGroup></Card>)}
                              </div>
+
+                             <Card className="p-6">
+                                <InputGroup label="Modo de Preparo / Instruções">
+                                    <textarea 
+                                        className="w-full bg-slate-50 border border-slate-200 rounded-lg p-3 text-sm focus:ring-2 focus:ring-emerald-500 outline-none transition-all min-h-[100px]"
+                                        placeholder="Descreva o passo a passo..."
+                                        value={currentRecipe.instructions || ''}
+                                        onChange={e => {setCurrentRecipe({...currentRecipe, instructions: e.target.value}); setHasUnsavedChanges(true);}}
+                                    />
+                                </InputGroup>
+                             </Card>
+                             
                              <Card className="overflow-hidden min-h-[500px] flex flex-col relative">
-                                 {/* --- QUICK ADD HEADER --- */}
+                                 {/* Quick Add Header ... */}
                                  <div className="p-4 bg-slate-50 border-b border-slate-200 z-10">
                                      <div className="flex justify-between items-center mb-3">
                                         <h3 className="font-bold text-slate-700 flex items-center gap-2"><Layers size={18} className="text-slate-400"/> Composição</h3>
@@ -1354,7 +1437,7 @@ export default function App() {
                                      </div>
                                      <div className="flex gap-3 items-end">
                                          <div className="flex-1">
-                                             <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1 block">Selecionar Item ({quickAddForm.type === 'ingredient' ? 'Insumo' : 'Base'})</label>
+                                             <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1 block">Selecionar Item</label>
                                              <StyledSelect 
                                                 ref={quickAddSelectRef}
                                                 value={quickAddForm.ref_id} 
@@ -1364,90 +1447,151 @@ export default function App() {
                                                  <option value="">Selecione...</option>
                                                  {quickAddForm.type === 'ingredient' 
                                                     ? ingredients.map(i => <option key={i.id} value={i.id}>{i.name}</option>)
-                                                    : recipes.filter(r => r.type === 'sub_recipe' && r.id !== currentRecipe.id).map(r => <option key={r.id} value={r.id}>{r.name}</option>)
+                                                    : recipes.filter(r => r.type === 'sub_recipe' && r.id !== currentRecipe.id).map(r => <option key={r.id!} value={r.id!}>{r.name}</option>)
                                                  }
                                              </StyledSelect>
                                          </div>
                                          <div className="w-24">
-                                             <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1 block">Qtd</label>
-                                             <NumberInput 
-                                                className="text-center font-bold bg-white" 
-                                                placeholder="0" 
-                                                value={quickAddForm.qty} 
-                                                onChange={v => setQuickAddForm({...quickAddForm, qty: v})} 
+                                            <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1 block">Qtd</label>
+                                            <NumberInput 
+                                                className="bg-white"
+                                                placeholder="0"
+                                                value={quickAddForm.qty}
+                                                onChange={v => setQuickAddForm({...quickAddForm, qty: v})}
                                                 onKeyDown={e => { if(e.key === 'Enter') handleQuickAddItem(); }}
-                                             />
+                                            />
                                          </div>
-                                         <div className="w-20 pb-3 text-center">
-                                             <span className="text-xs font-bold text-slate-500 uppercase">
-                                                 {(() => {
-                                                     if(!quickAddForm.ref_id) return '-';
-                                                     if(quickAddForm.type === 'ingredient') return ingredients.find(i => i.id === quickAddForm.ref_id)?.unit || '-';
-                                                     return recipes.find(r => r.id === quickAddForm.ref_id)?.unit || '-';
-                                                 })()}
-                                             </span>
-                                         </div>
-                                         <button 
-                                            onClick={handleQuickAddItem} 
-                                            disabled={!quickAddForm.ref_id || quickAddForm.qty <= 0}
-                                            className="h-[42px] px-6 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg font-bold shadow-lg shadow-emerald-600/20 disabled:opacity-50 disabled:cursor-not-allowed transition-all flex items-center gap-2"
-                                         >
-                                             <CornerDownLeft size={18}/> Adicionar
-                                         </button>
+                                         <button onClick={handleQuickAddItem} className="bg-emerald-600 hover:bg-emerald-700 text-white p-2.5 rounded-lg shadow-md shadow-emerald-600/20 transition-all"><Plus size={20}/></button>
                                      </div>
                                  </div>
-
-                                 {/* --- SCROLLABLE LIST --- */}
-                                 <div className="flex-1 overflow-y-auto max-h-[400px]">
-                                     <table className="w-full text-sm">
-                                        <thead className="bg-white border-b border-slate-100 text-slate-500 sticky top-0 z-0 shadow-sm">
-                                            <tr><th className="p-3 pl-6 text-left w-20">Tipo</th><th className="p-3 text-left w-[40%]">Item</th><th className="p-3 w-24">Qtd</th><th className="p-3 w-20 text-center">Un</th><th className="p-3 text-right">Custo</th><th className="w-16"></th></tr>
+                                 
+                                 <div className="flex-1 overflow-y-auto p-0">
+                                     <table className="w-full text-left text-sm">
+                                        <thead className="bg-slate-50 text-slate-500 font-semibold uppercase text-xs sticky top-0 z-10 shadow-sm">
+                                            <tr>
+                                                <th className="p-4 pl-6">Item</th>
+                                                <th className="p-4 text-center">Tipo</th>
+                                                <th className="p-4 text-right">Qtd</th>
+                                                <th className="p-4 text-center">Un</th>
+                                                <th className="p-4 text-right">Custo Est.</th>
+                                                <th className="p-4 text-center pr-6"></th>
+                                            </tr>
                                         </thead>
-                                        <tbody className="divide-y divide-slate-50">
+                                        <tbody className="divide-y divide-slate-100">
+                                            {currentRecipe.items.length === 0 && (
+                                                <tr><td colSpan={6} className="p-8 text-center text-slate-400 italic">Nenhum item adicionado à receita.</td></tr>
+                                            )}
                                             {currentRecipe.items.map((item, idx) => {
-                                                let cost = 0; let options = []; if(item.item_type === 'ingredient') { options = ingredients; const ing = ingredients.find(i => i.id === item.ref_id); if(ing) cost = item.qty * ing.cost_per_unit; } else { options = recipes.filter(r => r.type === 'sub_recipe' && r.id !== currentRecipe.id); const sub = options.find((o:any) => o.id === item.ref_id) as Recipe; if(sub) { const subCost = getRecipeCosts(sub).costPerPortion; cost = item.qty * subCost; } }
-                                                const updateItem = (field: keyof RecipeItemDB, val: any) => { const newItems = [...currentRecipe.items]; newItems[idx] = { ...newItems[idx], [field]: val }; if(field === 'ref_id') { const found = options.find((o:any) => o.id === val); if(found) newItems[idx].unit = (found as any).unit; } setCurrentRecipe({...currentRecipe, items: newItems}); setHasUnsavedChanges(true); };
-                                                return (<tr key={idx} className="group hover:bg-slate-50/50"><td className="p-2 pl-6"><Badge color={item.item_type === 'ingredient' ? 'blue' : 'orange'}>{item.item_type === 'ingredient' ? 'INS' : 'BASE'}</Badge></td><td className="p-2 font-medium text-slate-700">{item.item_type === 'ingredient' ? ingredients.find(i => i.id === item.ref_id)?.name : recipes.find(r => r.id === item.ref_id)?.name}</td><td className="p-2"><NumberInput className="text-center font-medium h-8 text-xs" value={item.qty} onChange={v => updateItem('qty', v)} /></td><td className="p-2 text-center text-slate-500 text-xs font-bold uppercase">{item.unit}</td><td className="p-2 text-right font-mono text-slate-700 font-medium">{formatCurrency(cost)}</td><td className="p-2 text-center"><button onClick={() => { const newItems = currentRecipe.items.filter((_, i) => i !== idx); setCurrentRecipe({...currentRecipe, items: newItems}); setHasUnsavedChanges(true); }} className="text-slate-300 hover:text-red-500 p-1.5 rounded-full hover:bg-red-50 transition-colors"><X size={16}/></button></td></tr>)
+                                                let name = 'Item removido';
+                                                let cost = 0;
+                                                let typeLabel = item.item_type === 'ingredient' ? 'Insumo' : 'Base';
+                                                
+                                                if (item.item_type === 'ingredient') {
+                                                    const ing = ingredients.find(i => i.id === item.ref_id);
+                                                    if(ing) { 
+                                                        name = ing.name; 
+                                                        cost = item.qty * ing.cost_per_unit; 
+                                                    }
+                                                } else {
+                                                    const sub = recipes.find(r => r.id === item.ref_id);
+                                                    if(sub) { 
+                                                        name = sub.name; 
+                                                        // Calc sub cost
+                                                        const subTotal = getRecipeCosts(sub).totalCost; // reusing helper
+                                                        const subPortions = Number(sub.portions) || 1;
+                                                        const costPerUnit = subPortions > 0 ? subTotal/subPortions : 0;
+                                                        cost = item.qty * costPerUnit;
+                                                    }
+                                                }
+
+                                                return (
+                                                    <tr key={idx} className="hover:bg-slate-50 group">
+                                                        <td className="p-3 pl-6 font-medium text-slate-700">{name}</td>
+                                                        <td className="p-3 text-center"><Badge color={item.item_type === 'ingredient' ? 'blue' : 'orange'}>{typeLabel}</Badge></td>
+                                                        <td className="p-3 text-right font-bold text-slate-600">{item.qty}</td>
+                                                        <td className="p-3 text-center text-xs uppercase text-slate-400">{item.unit}</td>
+                                                        <td className="p-3 text-right text-slate-600">{maskedCurrency(cost)}</td>
+                                                        <td className="p-3 text-center pr-6">
+                                                            <button 
+                                                                onClick={() => {
+                                                                    const newItems = [...currentRecipe.items];
+                                                                    newItems.splice(idx, 1);
+                                                                    setCurrentRecipe({...currentRecipe, items: newItems});
+                                                                    setHasUnsavedChanges(true);
+                                                                }}
+                                                                className="p-1.5 text-slate-300 hover:text-red-500 rounded-md hover:bg-red-50 transition-colors"
+                                                            >
+                                                                <X size={16}/>
+                                                            </button>
+                                                        </td>
+                                                    </tr>
+                                                );
                                             })}
-                                            {currentRecipe.items.length === 0 && (<tr><td colSpan={6} className="p-12 text-center text-slate-400 italic">Nenhum item adicionado à receita.<br/><span className="text-xs text-slate-300 mt-2 block">Use o painel acima para adicionar.</span></td></tr>)}
                                         </tbody>
                                      </table>
                                  </div>
                              </Card>
-                             <div className="grid grid-cols-12 gap-6"><Card className="col-span-12 lg:col-span-7 p-6"><h3 className="font-bold text-slate-700 mb-4 flex items-center gap-2 border-b pb-2"><TrendingUp size={18}/> Custos Indiretos & Extras</h3><div className="grid grid-cols-2 gap-4 mb-4"><InputGroup label="Embalagem"><NumberInput value={currentRecipe.extra_packaging} onChange={v => {setCurrentRecipe({...currentRecipe, extra_packaging: v}); setHasUnsavedChanges(true);}} /></InputGroup><InputGroup label={currentRecipe.type === 'drink' ? 'Gelo/Guarnição' : 'Energia/Gás'}><NumberInput value={currentRecipe.type === 'drink' ? currentRecipe.extra_ice_garnish : currentRecipe.extra_utilities} onChange={v => {setCurrentRecipe({...currentRecipe, [currentRecipe.type === 'drink' ? 'extra_ice_garnish' : 'extra_utilities']: v}); setHasUnsavedChanges(true);}} /></InputGroup></div><div className="grid grid-cols-2 gap-4"><InputGroup label="Outros"><StyledInput type="text" defaultValue={currentRecipe.extra_other_direct} onBlur={(e) => {
-                                        let val = e.target.value;
-                                        if (val.includes('%')) {
-                                            const pct = parseFloat(val.replace('%', '').replace(',', '.'));
-                                            if (!isNaN(pct)) {
-                                                const costs = getRecipeCosts(currentRecipe);
-                                                // Calculate based on total INGREDIENTS cost (insumos)
-                                                const calcVal = costs.itemsCost * (pct / 100);
-                                                setCurrentRecipe({...currentRecipe, extra_other_direct: calcVal});
-                                                e.target.value = calcVal.toFixed(2);
-                                            }
-                                        } else {
-                                            const num = parseInputNumber(val);
-                                            setCurrentRecipe({...currentRecipe, extra_other_direct: num});
-                                        }
-                                        setHasUnsavedChanges(true);
-                                     }} placeholder="Valor ou % (ex: 10%)" /></InputGroup>
-                                     <Restricted>
-                                        <InputGroup label="Rateio Custo Fixo"><NumberInput className="border-amber-200 bg-amber-50 focus:ring-amber-500" value={currentRecipe.extra_fixed_cost} onChange={v => {setCurrentRecipe({...currentRecipe, extra_fixed_cost: v}); setHasUnsavedChanges(true);}} /></InputGroup>
-                                     </Restricted>
-                                     </div></Card><Card className="col-span-12 lg:col-span-5 flex flex-col overflow-hidden"><div className="bg-slate-50 p-3 border-b border-slate-200 font-bold text-sm text-slate-700">Modo de Preparo</div><textarea className="w-full h-full p-4 resize-none outline-none text-sm text-slate-700 leading-relaxed bg-white" placeholder="Descreva o passo a passo..." value={currentRecipe.instructions} onChange={e => {setCurrentRecipe({...currentRecipe, instructions: e.target.value}); setHasUnsavedChanges(true);}} /></Card></div>
                         </div>
-                        {userRole === 'admin' && (
-                        <div className="w-[400px] bg-white border-l border-slate-200 flex flex-col z-10 shadow-xl shadow-slate-200/50">
-                             <div className="p-6 border-b border-slate-100 bg-slate-50/50"><h3 className="font-bold text-lg flex items-center gap-2 mb-1 text-slate-800"><DollarSign className="text-emerald-500"/> Precificação</h3><p className="text-xs text-slate-500">Análise financeira em tempo real.</p></div>
-                             <div className="flex-1 overflow-y-auto p-6 space-y-8">
-                                 {(() => { const costs = getRecipeCosts(currentRecipe); let suggested = 0; const targetDec = Number(currentRecipe.pricing_target)/100; if(currentRecipe.pricing_method === 'margin') { const div = 1 - (Number(currentRecipe.taxes_pct)/100) - (Number(currentRecipe.card_fee_pct)/100) - targetDec; suggested = div > 0 ? costs.costPerPortion / div : 0; } else { suggested = costs.costPerPortion * (1 + targetDec); }
-                                     return (<>
-                                            <div className="space-y-3 pb-6 border-b border-slate-100"><div className="flex justify-between items-center"><span className="text-sm text-slate-500 font-medium">Custo Produção Total</span> <span className="font-mono text-slate-700">{formatCurrency(costs.totalCost)}</span></div><div className="flex justify-between items-center p-3 bg-slate-50 rounded-lg border border-slate-100"><span className="text-xs font-bold uppercase text-slate-500">Custo / {currentRecipe.type === 'sub_recipe' ? currentRecipe.unit : 'Porção'}</span> <span className="font-bold text-lg text-slate-800">{formatCurrency(costs.costPerPortion)}</span></div></div>
-                                            {currentRecipe.type !== 'sub_recipe' && (<div className="space-y-6 animate-in fade-in slide-in-from-right-4 duration-500"><div><label className="text-xs font-bold text-slate-400 uppercase mb-2 block">Método de Precificação</label><div className="flex bg-slate-100 p-1 rounded-lg"><button onClick={() => {setCurrentRecipe({...currentRecipe, pricing_method: 'margin'}); setHasUnsavedChanges(true);}} className={`flex-1 text-xs py-2 rounded-md font-bold transition-all ${currentRecipe.pricing_method === 'margin' ? 'bg-white text-emerald-600 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}>Margem</button><button onClick={() => {setCurrentRecipe({...currentRecipe, pricing_method: 'markup'}); setHasUnsavedChanges(true);}} className={`flex-1 text-xs py-2 rounded-md font-bold transition-all ${currentRecipe.pricing_method === 'markup' ? 'bg-white text-emerald-600 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}>Markup</button></div></div>
-                                                    <div className="flex gap-4"><div className="flex-1"><InputGroup label="Meta %"><NumberInput className="text-right font-bold" value={currentRecipe.pricing_target} onChange={v => {setCurrentRecipe({...currentRecipe, pricing_target: v}); setHasUnsavedChanges(true);}} /></InputGroup></div><div className="flex-1"><InputGroup label="Sugerido"><div className="w-full bg-slate-100 border border-slate-200 text-slate-500 text-sm rounded-lg px-3 py-2.5 text-right font-mono font-bold cursor-not-allowed">{formatCurrency(suggested)}</div></InputGroup></div></div>
-                                                    <div className="pt-6 border-t border-slate-100"><label className="text-xs font-bold text-slate-900 uppercase flex items-center gap-2 mb-2">Preço de Venda <span className="text-[10px] font-normal text-slate-400 bg-slate-100 px-1.5 rounded">FINAL</span></label><div className="flex items-center gap-3 relative"><span className="absolute left-0 top-1 text-emerald-600 font-bold text-2xl">R$</span><NumberInput className="bg-transparent text-4xl font-black text-slate-900 w-full outline-none border-b-2 border-slate-200 focus:border-emerald-500 pl-8 transition-colors pb-1" placeholder="0,00" value={currentRecipe.final_price} onChange={v => {setCurrentRecipe({...currentRecipe, final_price: v}); setHasUnsavedChanges(true);}} /></div></div>
-                                                    <div className="bg-slate-50 p-4 rounded-xl border border-slate-100 space-y-2"><div className="flex justify-between text-xs text-slate-500 items-center"><span>Impostos ({currentRecipe.taxes_pct}%)</span><NumberInput className="w-12 bg-white border rounded px-1 text-right text-xs" value={currentRecipe.taxes_pct} onChange={v => setCurrentRecipe({...currentRecipe, taxes_pct: v})}/></div><div className="flex justify-between text-xs text-slate-500 items-center"><span>Taxas Cartão ({currentRecipe.card_fee_pct}%)</span><NumberInput className="w-12 bg-white border rounded px-1 text-right text-xs" value={currentRecipe.card_fee_pct} onChange={v => setCurrentRecipe({...currentRecipe, card_fee_pct: v})}/></div><div className="pt-2 border-t border-slate-200 flex justify-between text-xs font-bold text-slate-700"><span>Receita Líquida</span><span>{formatCurrency(costs.price - costs.tax - (costs.price * (Number(currentRecipe.card_fee_pct)/100)))}</span></div></div>
-                                                    <div className="space-y-4"><div className="flex justify-between items-end"><label className="text-xs font-bold text-slate-400 uppercase">Lucro Líquido</label><span className={`text-2xl font-bold ${costs.profit > 0 ? 'text-emerald-600' : 'text-red-500'}`}>{formatCurrency(costs.profit)}</span></div><div><div className="flex justify-between items-end mb-2"><label className="text-xs font-bold text-slate-400 uppercase">Margem Real</label><span className={`text-xl font-bold ${costs.margin >= 20 ? 'text-emerald-600' : costs.margin > 0 ? 'text-orange-500' : 'text-red-500'}`}>{costs.margin.toFixed(1)}%</span></div><div className="w-full bg-slate-100 h-3 rounded-full overflow-hidden shadow-inner"><div className={`h-full transition-all duration-500 ${costs.margin >= 20 ? 'bg-emerald-500' : costs.margin > 0 ? 'bg-orange-400' : 'bg-red-500'}`} style={{width: `${Math.min(Math.max(costs.margin, 0), 100)}%`}}></div></div><p className="text-[10px] text-slate-400 mt-1 text-center">Ideal: &gt; 25%</p></div></div></div>)}</> )})()}</div></div>
-                        )}
+
+                        {/* Side Panel for Totals */}
+                        <div className="w-80 bg-white border-l border-slate-200 p-6 flex flex-col overflow-y-auto shadow-xl z-20">
+                            <h3 className="font-bold text-slate-800 mb-6 uppercase text-xs tracking-wider border-b pb-2">Resumo Financeiro</h3>
+                            
+                            {(() => {
+                                const costs = getRecipeCosts(currentRecipe);
+                                return (
+                                    <div className="space-y-6">
+                                        <div>
+                                            <div className="flex justify-between text-sm mb-1"><span className="text-slate-500">Custo Insumos</span> <span className="font-medium">{maskedCurrency(costs.itemsCost)}</span></div>
+                                            <div className="h-1.5 bg-slate-100 rounded-full overflow-hidden"><div className="h-full bg-blue-500 rounded-full" style={{width: `${Math.min((costs.itemsCost/costs.totalCost)*100, 100)}%`}}></div></div>
+                                        </div>
+
+                                        <div className="space-y-3 pt-4 border-t border-slate-100">
+                                            <InputGroup label="Embalagem (R$)"><NumberInput value={currentRecipe.extra_packaging} onChange={v => {setCurrentRecipe({...currentRecipe, extra_packaging: v}); setHasUnsavedChanges(true);}}/></InputGroup>
+                                            <InputGroup label="Custos Fixos (R$)"><NumberInput value={currentRecipe.extra_fixed_cost} onChange={v => {setCurrentRecipe({...currentRecipe, extra_fixed_cost: v}); setHasUnsavedChanges(true);}}/></InputGroup>
+                                            {currentRecipe.type !== 'sub_recipe' && (
+                                                <>
+                                                    <InputGroup label="Mão de Obra (R$)"><NumberInput value={currentRecipe.extra_labor} onChange={v => {setCurrentRecipe({...currentRecipe, extra_labor: v}); setHasUnsavedChanges(true);}}/></InputGroup>
+                                                    <InputGroup label="Gás/Energia (R$)"><NumberInput value={currentRecipe.extra_utilities} onChange={v => {setCurrentRecipe({...currentRecipe, extra_utilities: v}); setHasUnsavedChanges(true);}}/></InputGroup>
+                                                </>
+                                            )}
+                                        </div>
+
+                                        <div className="bg-slate-50 p-4 rounded-lg space-y-2 border border-slate-200">
+                                            <div className="flex justify-between text-sm"><span className="text-slate-500 font-medium">Custo Total</span> <span className="font-bold text-slate-800">{maskedCurrency(costs.totalCost)}</span></div>
+                                            <div className="flex justify-between text-sm"><span className="text-slate-500 font-medium">Custo / {currentRecipe.type==='sub_recipe'? currentRecipe.unit : 'Porção'}</span> <span className="font-bold text-slate-800">{maskedCurrency(costs.costPerPortion)}</span></div>
+                                        </div>
+
+                                        {currentRecipe.type !== 'sub_recipe' && (
+                                            <>
+                                                <div className="space-y-3 pt-4 border-t border-slate-100">
+                                                    <div className="grid grid-cols-2 gap-3">
+                                                        <InputGroup label="Impostos %"><NumberInput value={currentRecipe.taxes_pct} onChange={v => {setCurrentRecipe({...currentRecipe, taxes_pct: v}); setHasUnsavedChanges(true);}}/></InputGroup>
+                                                        <InputGroup label="Taxa Card %"><NumberInput value={currentRecipe.card_fee_pct} onChange={v => {setCurrentRecipe({...currentRecipe, card_fee_pct: v}); setHasUnsavedChanges(true);}}/></InputGroup>
+                                                    </div>
+                                                    <InputGroup label="Preço Venda (R$)"><NumberInput className="font-bold text-emerald-700 bg-emerald-50 border-emerald-200" value={currentRecipe.final_price} onChange={v => {setCurrentRecipe({...currentRecipe, final_price: v}); setHasUnsavedChanges(true);}}/></InputGroup>
+                                                </div>
+
+                                                <div className={`p-4 rounded-lg border ${costs.profit > 0 ? 'bg-emerald-50 border-emerald-200' : 'bg-red-50 border-red-200'}`}>
+                                                    <div className="flex justify-between items-center mb-1">
+                                                        <span className={`text-xs font-bold uppercase ${costs.profit > 0 ? 'text-emerald-600' : 'text-red-600'}`}>Lucro Líquido</span>
+                                                        <span className={`font-bold ${costs.profit > 0 ? 'text-emerald-700' : 'text-red-700'}`}>{maskedCurrency(costs.profit)}</span>
+                                                    </div>
+                                                    <div className="flex justify-between items-center">
+                                                        <span className={`text-xs font-bold uppercase ${costs.profit > 0 ? 'text-emerald-600' : 'text-red-600'}`}>Margem</span>
+                                                        <span className={`font-bold ${costs.profit > 0 ? 'text-emerald-700' : 'text-red-700'}`}>{costs.margin.toFixed(1)}%</span>
+                                                    </div>
+                                                </div>
+                                            </>
+                                        )}
+                                    </div>
+                                );
+                            })()}
                         </div>
-                    </div></div>)}
+                    </div>
+                </div>
+            )}
+        </main>
+    </div>
+  );
+}
