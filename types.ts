@@ -22,6 +22,13 @@ export interface Category {
   type: CategoryType;
 }
 
+export interface DeliveryPlatform {
+  id: string;
+  user_id: string;
+  name: string;
+  percentage: number;
+}
+
 export interface FixedExpenseItem {
   id?: string;
   fixed_expense_id?: string;
@@ -76,6 +83,9 @@ export interface Recipe {
   extra_fixed_cost: number;
   extra_other_direct: number;
   extra_ice_garnish: number;
+  // Delivery
+  delivery_platform_id?: string | null;
+  extra_delivery_fee?: number;
   // Pricing
   taxes_pct: number;
   card_fee_pct: number;
