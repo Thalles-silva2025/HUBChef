@@ -4,7 +4,7 @@ import {
   ChefHat, ArrowRight, Printer, History,
   AlertTriangle, Scale, Edit2, TrendingUp,
   PieChart, BarChart2, Activity, X, Loader2, Cloud, FileSpreadsheet, Download, Wine, Layers, ChevronLeft, Settings, ToggleLeft, ToggleRight, Target, Search, MoreHorizontal, Calendar, Box, CheckSquare, Square, AlertCircle, CheckCircle, Info, Calculator, ClipboardCheck, Timer, TrendingDown, ArrowUpRight, ArrowDownRight, Eye, RefreshCw, ClipboardList, List, Clock, RotateCcw, Zap, CheckCircle2,
-  Filter, SlidersHorizontal, ArrowUpDown, ShoppingBag, Bike, User, HelpCircle, Package, Divide, Hammer, ShieldAlert, Store, TrendingDown as TrendingDownIcon, Play
+  Filter, SlidersHorizontal, ArrowUpDown, ShoppingBag, Bike, User, HelpCircle, Package, Divide, Hammer, ShieldAlert, Store, TrendingDown as TrendingDownIcon
 } from 'lucide-react';
 import { 
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip as ReTooltip, Legend, ResponsiveContainer, PieChart as RePieChart, Pie, Cell,
@@ -554,7 +554,7 @@ function HubChefApp() {
     const tax = price * (Number(recipe.taxes_pct)/100); 
     const card = price * (Number(recipe.card_fee_pct)/100); 
     let platformFee = 0; let extraDelivery = Number(recipe.extra_delivery_fee) || 0;
-    if (recipe.delivery_platform_id) { const platform = deliveryPlatforms.find(p => p.id === recipe.delivery_platform_id); if (platform) platformFee = price * (Number(platform.percentage) / 100); }
+    if (recipe.delivery_platform_id) { const platform = deliveryPlatforms.find(p => p.id === recipe.delivery_platform_id); if (platform) platformFee = price * (platform.percentage / 100); }
     const profit = price - costPerPortion - tax - card - platformFee - extraDelivery; 
     const margin = price > 0 ? (profit/price)*100 : 0; 
     const cmvPct = price > 0 ? (costPerPortion / price) * 100 : 0;
@@ -566,30 +566,6 @@ function HubChefApp() {
       const active = view === target;
       return <button type="button" onClick={() => { if(hasUnsavedChanges) { setPendingView(target); setShowUnsavedModal(true); } else { setView(target); setMobileMenuOpen(false); setSelectedIds(new Set()); } }} className={`w-full flex items-center gap-3 px-4 py-3 rounded-lg transition-all duration-200 group relative ${active ? 'bg-emerald-600/10 text-emerald-500 font-medium' : 'text-slate-400 hover:text-slate-100 hover:bg-slate-800'}`}><Icon size={20} className={active ? 'text-emerald-500' : 'group-hover:text-white transition-colors'} strokeWidth={active ? 2.5 : 2} />{isSidebarOpen && <span>{label}</span>}</button>;
   }
-
-  // --- SPECIFIC HANDLERS ---
-  const handleBackFromEditor = () => {
-      const targetView = currentRecipe?.type === 'drink' ? 'drinks' : currentRecipe?.type === 'sub_recipe' ? 'sub_recipes' : 'recipes';
-      if(hasUnsavedChanges) {
-          setPendingView(targetView);
-          setShowUnsavedModal(true);
-      } else {
-          setView(targetView);
-      }
-  };
-
-  const handleDiscardChanges = () => {
-      setHasUnsavedChanges(false);
-      setShowUnsavedModal(false);
-      if(pendingView) {
-          setView(pendingView);
-          setPendingView(null);
-      } else {
-          // Fallback if pendingView wasn't set, infer from context
-          const target = currentRecipe?.type === 'drink' ? 'drinks' : currentRecipe?.type === 'sub_recipe' ? 'sub_recipes' : 'recipes';
-          setView(target);
-      }
-  };
 
   // --- MAIN RENDER ---
   if (loading) return <div className="h-screen w-full flex items-center justify-center bg-slate-900"><Loader2 className="animate-spin text-emerald-500" size={48}/></div>;
@@ -660,7 +636,7 @@ function HubChefApp() {
                          const efficiencyScore = recentRuns.length ? Math.max(0, 100 - (totalVariance / recentRuns.length * 100)) : 100;
 
                          // --- DELIVERY IMPACT ANALYSIS ---
-                         const avgPlatformFee = deliveryPlatforms.length > 0 ? deliveryPlatforms.reduce((a,b) => a + Number(b.percentage), 0) / deliveryPlatforms.length : 20; // FIX: Number casting
+                         const avgPlatformFee = deliveryPlatforms.length > 0 ? deliveryPlatforms.reduce((a,b) => a + b.percentage, 0) / deliveryPlatforms.length : 20; // Default 20% if no platforms
                          
                          const deliveryComparisonData = [
                              { name: 'Balcão (Sem Taxa)', margin: avgMargin, fill: '#10b981' },
@@ -741,7 +717,7 @@ function HubChefApp() {
 
                          return (
                              <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
-                                {/* ... [KPI Cards logic identical to previous] ... */}
+                                {/* --- ROW 1: HIGH LEVEL KPIS --- */}
                                 <Card className="p-6 border-l-4 border-l-emerald-500 bg-white shadow-md hover:shadow-lg transition-all">
                                     <div className="flex justify-between items-start">
                                         <div>
@@ -982,8 +958,6 @@ function HubChefApp() {
                 </div>
             )}
             
-            {/* ... Other Views ... */}
-            
             {view === 'ingredients' && (
                 <div className="p-6 md:p-10 w-full max-w-7xl mx-auto">
                     <header className="flex flex-col md:flex-row justify-between items-start md:items-center mb-8 gap-4">
@@ -1005,6 +979,7 @@ function HubChefApp() {
                             <div className="mt-6 flex gap-3">{ingForm.id && <button onClick={() => setIngForm({unit: 'kg', package_qty: 1, yield_factor: 100})} className="flex-1 py-2.5 border border-slate-200 text-slate-600 rounded-lg hover:bg-slate-50 font-medium">Cancelar</button>}<button onClick={handleSaveIngredient} className="flex-1 py-2.5 bg-emerald-600 text-white rounded-lg hover:bg-emerald-700 font-medium shadow-md shadow-emerald-600/20">Salvar Item</button></div>
                         </Card>
                         <Card className="col-span-1 lg:col-span-2 overflow-hidden flex flex-col">
+                            {/* Professional Filter Toolbar */}
                             <div className="bg-white p-4 border-b border-slate-200 flex flex-col md:flex-row gap-4 items-center justify-between shadow-sm z-10">
                                 <div className="relative flex-1 w-full">
                                     <Search className="absolute left-3 top-2.5 text-slate-400" size={18}/>
@@ -1059,7 +1034,7 @@ function HubChefApp() {
                     </div>
                 </div>
             )}
-
+            
             {['recipes', 'drinks', 'sub_recipes'].includes(view) && (
                 <div className="p-6 md:p-10 w-full max-w-7xl mx-auto">
                     <header className="flex flex-col md:flex-row justify-between items-start md:items-center mb-8 gap-4">
@@ -1070,6 +1045,7 @@ function HubChefApp() {
                         </div>
                     </header>
 
+                    {/* Professional Filter Toolbar for Recipes */}
                     <div className="bg-white p-4 mb-8 rounded-xl border border-slate-200 shadow-sm flex flex-col lg:flex-row gap-4 items-center">
                         <div className="relative flex-1 w-full">
                             <Search className="absolute left-3 top-2.5 text-slate-400" size={18}/>
@@ -1113,7 +1089,7 @@ function HubChefApp() {
                             .filter(r => (view === 'sub_recipes' ? r.type === 'sub_recipe' : view === 'drinks' ? r.type === 'drink' : r.type === 'food'))
                             .filter(r => r.name.toLowerCase().includes(recipeSearch.toLowerCase()))
                             .filter(r => recipeCategoryFilter === 'all' || r.category === recipeCategoryFilter)
-                            .map(r => ({...r, costs: getRecipeCosts(r)}))
+                            .map(r => ({...r, costs: getRecipeCosts(r)})) // Pre-calc costs for sorting
                             .sort((a, b) => {
                                 if (recipeSort === 'name') return a.name.localeCompare(b.name);
                                 if (recipeSort === 'profit_high') return b.costs.profit - a.costs.profit;
@@ -1151,8 +1127,10 @@ function HubChefApp() {
                 </div>
             )}
 
+            {/* RECIPE DETAILS DASHBOARD */}
             {view === 'recipe-details' && currentRecipe && (
                 <div className="absolute inset-0 z-50 bg-slate-50 flex flex-col h-full w-full overflow-hidden animate-in fade-in slide-in-from-right-4 duration-300">
+                    {/* Header */}
                     <div className="bg-white border-b border-slate-200 px-8 py-4 flex justify-between items-center shadow-sm shrink-0">
                         <div className="flex items-center gap-6">
                             <button onClick={() => setView(currentRecipe.type === 'drink' ? 'drinks' : currentRecipe.type === 'sub_recipe' ? 'sub_recipes' : 'recipes')} className="p-2 hover:bg-slate-100 rounded-full text-slate-500 transition-colors"><ChevronLeft size={24}/></button>
@@ -1166,7 +1144,7 @@ function HubChefApp() {
                             </div>
                         </div>
                         <div className="flex gap-3">
-                            <button onClick={() => { setHasUnsavedChanges(false); setView('recipe-editor'); }} className="bg-slate-900 hover:bg-slate-800 text-white px-5 py-2.5 rounded-xl font-bold shadow-lg shadow-slate-900/20 flex items-center gap-2 transition-all transform active:scale-95">
+                            <button onClick={() => setView('recipe-editor')} className="bg-slate-900 hover:bg-slate-800 text-white px-5 py-2.5 rounded-xl font-bold shadow-lg shadow-slate-900/20 flex items-center gap-2 transition-all transform active:scale-95">
                                 <Edit2 size={18}/> Editar Ficha
                             </button>
                         </div>
@@ -1177,17 +1155,23 @@ function HubChefApp() {
                             const costs = getRecipeCosts(currentRecipe);
                             const isSub = currentRecipe.type === 'sub_recipe';
                             
+                            // Delivery Intelligent Pricing Logic for PREVIEW
                             let suggestedDeliveryPrice = 0;
                             const selectedPlatform = deliveryPlatforms.find(p => p.id === currentRecipe.delivery_platform_id);
                             
                             if (selectedPlatform) {
-                                const taxRate = Number(currentRecipe.taxes_pct || 0) / 100;
-                                const cardRate = Number(currentRecipe.card_fee_pct || 0) / 100;
+                                // 1. Calculate Profit ($) at Counter (No platform fee)
+                                const taxRate = Number(currentRecipe.taxes_pct) / 100;
+                                const cardRate = Number(currentRecipe.card_fee_pct) / 100;
+                                
+                                // Recalculate costs assuming NO platform to get pure counter profit
                                 const grossCounterRevenue = costs.price * (1 - taxRate - cardRate);
-                                const counterProfit = grossCounterRevenue - costs.totalCost;
+                                const counterProfit = grossCounterRevenue - costs.totalCost; // Profit without platform fee
 
-                                const platRate = Number(selectedPlatform.percentage || 0) / 100;
-                                const extraDelCost = Number(currentRecipe.extra_delivery_fee || 0);
+                                // 2. Calculate Delivery Price needed to maintain same Profit ($)
+                                const platRate = selectedPlatform.percentage / 100;
+                                const extraDelCost = Number(currentRecipe.extra_delivery_fee) || 0;
+                                
                                 const divisor = 1 - taxRate - cardRate - platRate;
                                 
                                 if (divisor > 0) {
@@ -1205,6 +1189,7 @@ function HubChefApp() {
 
                             return (
                                 <div className="space-y-8">
+                                    {/* KPI CARDS */}
                                     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
                                         <Card className="p-6 border-l-4 border-l-emerald-500 shadow-sm hover:shadow-md transition-shadow">
                                             <div className="flex justify-between items-start mb-2">
@@ -1245,7 +1230,9 @@ function HubChefApp() {
                                         </Card>
                                     </div>
 
+                                    {/* CHARTS & DETAILS GRID */}
                                     <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+                                        {/* COST BREAKDOWN CHART */}
                                         <Card className="p-6 flex flex-col h-[400px]">
                                             <h3 className="font-bold text-slate-800 mb-6 flex items-center gap-2"><PieChart size={18} className="text-slate-400"/> Composição de Custos</h3>
                                             <div className="flex-1 min-h-0 relative">
@@ -1269,6 +1256,7 @@ function HubChefApp() {
                                             </div>
                                         </Card>
 
+                                        {/* DELIVERY SIMULATION DETAILS */}
                                         <Card className="p-6 bg-gradient-to-br from-white to-purple-50/50 border-purple-100">
                                             <h3 className="font-bold text-purple-900 mb-6 flex items-center gap-2"><Bike size={18} className="text-purple-500"/> Simulação Delivery</h3>
                                             <div className="space-y-6">
@@ -1310,6 +1298,7 @@ function HubChefApp() {
                                             </div>
                                         </Card>
 
+                                        {/* PRODUCTION LOG TIMELINE */}
                                         <Card className="p-6 overflow-hidden flex flex-col h-[400px]">
                                             <h3 className="font-bold text-slate-800 mb-6 flex items-center gap-2"><ClipboardCheck size={18} className="text-blue-500"/> Histórico de Produção</h3>
                                             <div className="flex-1 overflow-y-auto pr-2 space-y-4">
@@ -1346,6 +1335,7 @@ function HubChefApp() {
                                         </Card>
                                     </div>
                                     
+                                    {/* INGREDIENTS TABLE (READ ONLY) */}
                                     <Card className="overflow-hidden">
                                         <div className="p-4 bg-slate-50 border-b border-slate-200 font-bold text-slate-700 text-sm">Composição da Receita</div>
                                         <table className="w-full text-sm">
@@ -1391,15 +1381,132 @@ function HubChefApp() {
                 </div>
             )}
 
-            {/* Other Views: Fixed Expenses, Categories - already present */}
-            {view === 'fixed-expenses' && ( <div className="p-6 md:p-10 w-full max-w-[1600px] mx-auto flex gap-8 h-full overflow-hidden"> <div className="w-1/3 flex flex-col gap-4"> <div className="flex justify-between items-center mb-2"><h1 className="text-2xl font-bold text-slate-900 flex items-center gap-2"><TrendingUp className="text-amber-500"/> Despesas Fixas</h1><button onClick={() => handleEditExpense()} className="bg-slate-900 text-white p-2 rounded-lg hover:bg-slate-700"><Plus/></button></div> <div className="relative mb-2"> <Calendar className="absolute left-3 top-2.5 text-slate-400" size={16}/> <select className="pl-9 pr-4 py-2 w-full bg-white border border-slate-200 rounded-lg text-sm focus:ring-2 focus:ring-amber-500 outline-none appearance-none cursor-pointer text-slate-600 font-medium" onChange={(e) => {}}> <option value="all">Todos os Anos</option> {[...new Set(expenses.map(e => e.year))].sort((a,b) => b-a).map(y => <option key={y} value={y}>{y}</option>)} </select> </div> <div className="flex-1 overflow-y-auto space-y-3 pr-2"> {expenses.map(exp => ( <Card key={exp.id} onClick={() => handleEditExpense(exp)} className={`p-4 cursor-pointer hover:border-amber-400 transition-all ${activeExpenseId === exp.id ? 'border-amber-500 ring-1 ring-amber-500 bg-amber-50' : ''}`} > <div className="flex justify-between items-start mb-2"><div><span className="font-bold text-lg text-slate-800">{formatMonth(exp.month)} / {exp.year}</span><div className="text-xs text-slate-500">{exp.total_dishes_sold} pratos vendidos</div></div><div className="text-right"><div className="font-bold text-amber-600">{formatCurrency(exp.total_expenses)}</div><div className="text-[10px] font-bold uppercase text-slate-400">Total</div></div></div> <div className="flex justify-between items-center pt-2 border-t border-slate-100"><span className="text-xs text-slate-500">Custo Fixo Unitário</span><span className="font-bold text-slate-700 bg-slate-100 px-2 py-0.5 rounded">{formatCurrency(exp.cost_per_dish)}</span></div> <div className="flex justify-end mt-2"><button onClick={(e) => { e.stopPropagation(); confirmDelete('expenses', [exp.id]); }} className="text-slate-300 hover:text-red-500 p-1 z-10"><Trash2 size={14}/></button></div> </Card> ))} {expenses.length === 0 && <div className="text-center text-slate-400 py-10">Nenhum registro encontrado.</div>} </div> </div> <div className="flex-1 flex flex-col h-full overflow-hidden"> {activeExpenseId ? ( <Card className="flex-1 flex flex-col overflow-hidden h-full border-amber-200"> <div className="p-6 border-b border-slate-100 bg-slate-50 flex justify-between items-center"><h3 className="font-bold text-lg text-slate-800 flex items-center gap-2">{activeExpenseId === 'new' ? 'Novo Registro' : 'Editar Registro'}</h3><div className="flex gap-2"><button onClick={() => setActiveExpenseId(null)} className="px-4 py-2 text-slate-500 hover:bg-slate-200 rounded-lg">Cancelar</button><button onClick={handleSaveExpense} className="bg-amber-500 hover:bg-amber-600 text-white px-6 py-2 rounded-lg font-bold shadow-lg shadow-amber-500/20 flex items-center gap-2"><Save size={18}/> Salvar</button></div></div> <div className="p-6 overflow-y-auto flex-1"> <div className="grid grid-cols-3 gap-6 mb-8"><InputGroup label="Mês"><StyledSelect value={expenseForm.month} onChange={e => setExpenseForm({...expenseForm, month: e.target.value})}>{Array.from({length:12}, (_,i) => <option key={i+1} value={i+1}>{formatMonth(i+1)}</option>)}</StyledSelect></InputGroup><InputGroup label="Ano"><StyledInput type="number" value={expenseForm.year} onChange={e => setExpenseForm({...expenseForm, year: e.target.value})} /></InputGroup><InputGroup label="Pratos Vendidos"><StyledInput type="number" value={expenseForm.dishes} onChange={e => setExpenseForm({...expenseForm, dishes: e.target.value})} /></InputGroup></div> <h4 className="font-bold text-sm text-slate-500 uppercase tracking-wider mb-4 border-b pb-2 flex justify-between items-center">Detalhamento Financeiro</h4> <div className="space-y-3"> {expenseForm.items.map((item, idx) => { const category = categories.find(c => c.id === item.category_id); return ( <div key={idx} className="flex justify-between items-center p-3 bg-slate-50 rounded-lg border border-slate-100 hover:border-amber-200 transition-colors gap-4"> <div className="flex-1"> <StyledSelect value={item.category_id} onChange={(e) => { const newItems = [...expenseForm.items]; newItems[idx].category_id = e.target.value; setExpenseForm({...expenseForm, items: newItems}); }}> <option value="" disabled>Selecione a Categoria</option> {expenseCategories.map(c => <option key={c.id} value={c.id}>{c.name}</option>)} </StyledSelect> </div> <div className="w-40 relative"> <span className="absolute left-3 top-2.5 text-slate-400 text-xs">R$</span> <input type="number" className="w-full pl-8 pr-3 py-2 border border-slate-200 rounded-lg text-right font-mono font-medium focus:ring-2 focus:ring-amber-500 outline-none" placeholder="0.00" value={item.amount} onChange={(e) => { const newItems = [...expenseForm.items]; newItems[idx].amount = e.target.value; setExpenseForm({...expenseForm, items: newItems}); }}/> </div> <button onClick={() => { const newItems = expenseForm.items.filter((_, i) => i !== idx); setExpenseForm({...expenseForm, items: newItems}); }} className="p-2 text-slate-400 hover:text-red-500 transition-colors"><X size={18}/></button> </div> ) })} <button onClick={() => setExpenseForm(prev => ({...prev, items: [...prev.items, { category_id: '', amount: '' }]}))} className="w-full py-2 border border-dashed border-slate-300 text-slate-500 rounded-lg hover:bg-slate-50 hover:text-slate-700 text-sm font-medium flex justify-center items-center gap-2 mb-4"><Plus size={16}/> Adicionar Linha de Despesa</button> <div className="mt-6 pt-4 border-t border-slate-100 bg-blue-50/50 p-4 rounded-xl"> <label className="text-xs font-bold text-blue-600 uppercase mb-2 block flex items-center gap-2"><Zap size={14}/> Cadastro Rápido de Categoria</label> <div className="flex gap-2"> <input className="flex-1 bg-white border border-blue-200 text-slate-900 text-sm rounded-lg px-3 py-2 focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none placeholder:text-blue-300" placeholder="Digite o nome da nova categoria..." value={quickCatName} onChange={(e) => setQuickCatName(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && handleAddQuickCategory()} /> <button onClick={handleAddQuickCategory} disabled={!quickCatName.trim()} className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg font-bold text-sm shadow-sm transition-all disabled:opacity-50 disabled:cursor-not-allowed">Criar & Adicionar</button> </div> <p className="text-[10px] text-blue-400 mt-2 ml-1">Dica: Isso criará a categoria no sistema e já adicionará uma linha acima.</p> </div> </div> </div> <div className="bg-slate-900 text-white p-4 flex justify-between items-center"><div className="text-sm opacity-80">Total Despesas</div><div className="text-2xl font-bold">{formatCurrency(expenseForm.items.reduce((acc, i) => acc + (Number(i.amount)||0), 0))}</div></div> </Card> ) : ( <div className="flex-1 flex flex-col items-center justify-center text-slate-300 bg-slate-50/50 rounded-xl border border-dashed border-slate-200"><Calculator size={48} className="mb-4 opacity-50"/><p>Selecione um mês ou crie um novo registro</p></div> )} </div> </div> )}
-            {view === 'categories' && ( <div className="p-10 max-w-4xl mx-auto"> <h1 className="text-3xl font-bold text-slate-900 mb-8 flex items-center gap-3"><Settings className="text-slate-600"/> Configurações</h1> <div className="flex gap-4 mb-6 border-b border-slate-200 overflow-x-auto no-scrollbar"> <button onClick={() => setCatTab('recipe')} className={`pb-3 px-4 font-bold text-sm transition-all border-b-2 whitespace-nowrap flex items-center gap-2 ${catTab === 'recipe' ? 'border-emerald-500 text-emerald-600' : 'border-transparent text-slate-500 hover:text-slate-700'}`}><ChefHat size={16}/> Categorias de Receitas</button> <button onClick={() => setCatTab('expense')} className={`pb-3 px-4 font-bold text-sm transition-all border-b-2 whitespace-nowrap flex items-center gap-2 ${catTab === 'expense' ? 'border-amber-500 text-amber-600' : 'border-transparent text-slate-500 hover:text-slate-700'}`}><TrendingUp size={16}/> Plano de Contas</button> <button onClick={() => setCatTab('platform')} className={`pb-3 px-4 font-bold text-sm transition-all border-b-2 whitespace-nowrap flex items-center gap-2 ${catTab === 'platform' ? 'border-purple-500 text-purple-600' : 'border-transparent text-slate-500 hover:text-slate-700'}`}><ShoppingBag size={16}/> Plataformas de Delivery</button> </div> {catTab === 'platform' ? ( <> <Card className="p-6 mb-6 border-l-4 border-l-purple-500"> <h3 className="font-bold text-slate-800 mb-4 text-sm flex items-center gap-2"><Plus size={16} className="text-purple-500"/> Adicionar Nova Plataforma</h3> <div className="flex gap-4 items-end"> <div className="flex-1"><label className="text-xs font-bold text-slate-500 uppercase mb-1 block">Nome da Plataforma</label><StyledInput placeholder="Ex: iFood, Rappi..." value={platformForm.name} onChange={e => setPlatformForm({...platformForm, name: e.target.value})} /></div> <div className="w-40"><label className="text-xs font-bold text-slate-500 uppercase mb-1 block">Taxa (%)</label><div className="relative"><StyledInput type="number" placeholder="0" className="pr-8" value={platformForm.percentage} onChange={e => setPlatformForm({...platformForm, percentage: e.target.value})} /><span className="absolute right-3 top-2.5 text-slate-400 text-sm font-bold">%</span></div></div> <button onClick={handleSavePlatform} disabled={!platformForm.name} className="bg-purple-600 hover:bg-purple-700 text-white px-6 py-2.5 rounded-lg font-bold shadow-lg shadow-purple-600/20 transition-all disabled:opacity-50 disabled:cursor-not-allowed h-[42px]">Salvar</button> </div> </Card> <div className="space-y-3">{deliveryPlatforms.map(plat => (<Card key={plat.id} className="p-4 flex justify-between items-center group hover:border-purple-200 transition-all"><div className="flex items-center gap-4"><div className="bg-purple-50 p-2 rounded-lg text-purple-600"><Bike size={20}/></div><div><span className="font-bold text-slate-800 block">{plat.name}</span><span className="text-xs text-slate-500">Taxa de serviço configurada</span></div></div><div className="flex items-center gap-6"><div className="text-right"><span className="text-2xl font-bold text-purple-700">{plat.percentage}%</span><span className="text-[10px] uppercase font-bold text-slate-400 block">Comissão</span></div><button onClick={() => confirmDelete('delivery_platforms', [plat.id])} className="text-slate-300 hover:text-red-500 p-2 rounded-full hover:bg-red-50 transition-colors"><Trash2 size={18}/></button></div></Card>))}</div> </> ) : ( <> <Card className="p-6 mb-6"> <div className="flex gap-4"><StyledInput placeholder={catTab === 'recipe' ? "Nova Categoria (ex: Entradas Frias)" : "Nova Conta (ex: Marketing)"} value={newCatInput} onChange={e => setNewCatInput(e.target.value)} /><button onClick={async () => { if(newCatInput) { await supabase.from('categories').insert({user_id: session.user.id, name: newCatInput, type: catTab}); setNewCatInput(''); fetchData(); } }} className={`text-white px-6 rounded-lg font-bold ${catTab === 'recipe' ? 'bg-emerald-600' : 'bg-amber-600'}`}>Adicionar</button></div> </Card> <div className="grid grid-cols-1 md:grid-cols-2 gap-3">{categories.filter(c => c.type === catTab).map(cat => (<Card key={cat.id} className="p-4 flex justify-between items-center group hover:shadow-md transition-all"><span className="font-medium text-slate-700">{cat.name}</span><button onClick={() => confirmDelete('categories', [cat.id])} className="text-slate-300 hover:text-red-500 opacity-0 group-hover:opacity-100 transition-opacity"><Trash2 size={16}/></button></Card>))}</div> </> )} </div> )}
-            {view === 'production' && ( <div className="p-6 md:p-10 w-full max-w-7xl mx-auto"> <header className="flex justify-between items-center mb-8"> <div><h1 className="text-3xl font-bold text-slate-900 tracking-tight flex items-center gap-3"><ClipboardCheck className="text-emerald-600" size={32}/> Controle de Produção</h1><p className="text-slate-500 mt-1 ml-11">Realize a baixa de produção e compare custos Teóricos vs. Reais.</p></div> <button onClick={startProduction} className="bg-emerald-600 hover:bg-emerald-700 text-white px-5 py-2.5 rounded-lg font-bold shadow-lg shadow-emerald-600/20 flex items-center gap-2 transition-all transform active:scale-95"><Plus size={20} /> Nova Produção</button> </header> <div className="bg-white p-4 mb-6 rounded-xl border border-slate-200 shadow-sm flex flex-col md:flex-row gap-4 items-center"> <div className="relative flex-1 w-full"><Search className="absolute left-3 top-2.5 text-slate-400" size={18}/><input placeholder="Buscar produção por nome da receita..." className="pl-10 pr-4 py-2 w-full bg-slate-50 border border-slate-200 rounded-lg text-sm focus:ring-2 focus:ring-emerald-500 outline-none transition-all placeholder:text-slate-400" value={productionSearch} onChange={e => setProductionSearch(e.target.value)} /></div> <div className="flex gap-3 w-full md:w-auto"><div className="relative flex-1 md:w-48"><Calendar className="absolute left-3 top-2.5 text-slate-400" size={16}/><select className="pl-9 pr-4 py-2 w-full bg-slate-50 border border-slate-200 rounded-lg text-sm focus:ring-2 focus:ring-emerald-500 outline-none appearance-none cursor-pointer text-slate-600 font-medium" value={productionDateFilter} onChange={e => setProductionDateFilter(e.target.value)}><option value="all">Todo o Período</option><option value="7days">Últimos 7 dias</option><option value="30days">Últimos 30 dias</option></select></div></div> </div> <Card className="overflow-hidden"> <div className="overflow-x-auto"> <table className="w-full text-left text-sm"><thead className="bg-slate-50 text-slate-500 font-semibold uppercase text-xs border-b border-slate-200"><tr><th className="p-4">Data</th><th className="p-4">Receita Produzida</th><th className="p-4 text-center">Tempo (Real)</th><th className="p-4 text-center">Rendimento (Real)</th><th className="p-4 text-right">Custo Total</th><th className="p-4 text-center">Variação</th><th className="p-4"></th></tr></thead> <tbody className="divide-y divide-slate-100">{productionRuns.filter(run => run.recipe_name.toLowerCase().includes(productionSearch.toLowerCase())).filter(run => { if (productionDateFilter === 'all') return true; const diffDays = Math.ceil(Math.abs(new Date().getTime() - new Date(run.created_at).getTime()) / (1000 * 60 * 60 * 24)); return productionDateFilter === '7days' ? diffDays <= 7 : diffDays <= 30; }).map(run => { const variance = Number(run.planned_cost) > 0 ? ((Number(run.actual_cost) - Number(run.planned_cost)) / Number(run.planned_cost)) * 100 : 0; return (<tr key={run.id} className="hover:bg-slate-50 transition-colors"><td className="p-4 text-slate-600">{formatDate(run.created_at)}</td><td className="p-4 font-bold text-slate-800">{run.recipe_name}</td><td className="p-4 text-center text-slate-600">{run.actual_time_minutes} min</td><td className="p-4 text-center text-slate-600">{run.actual_yield} un</td><td className="p-4 text-right font-mono font-medium text-slate-700">{formatCurrency(run.actual_cost)}</td><td className="p-4 text-center"><span className={`px-2 py-1 rounded text-xs font-bold ${Math.abs(variance) < 2 ? 'bg-slate-100 text-slate-500' : variance > 0 ? 'bg-red-100 text-red-700' : 'bg-emerald-100 text-emerald-700'}`}>{variance > 0 ? '+' : ''}{variance.toFixed(1)}%</span></td><td className="p-4 text-right flex gap-2 justify-end"><button onClick={() => { setViewingProduction(run); setView('production-wizard'); setProdWizardStep(3); }} className="text-slate-300 hover:text-blue-500"><Eye size={16}/></button><button onClick={() => confirmDelete('production', [run.id])} className="text-slate-300 hover:text-red-500"><Trash2 size={16}/></button></td></tr>) })} {productionRuns.length === 0 && <tr><td colSpan={7} className="p-12 text-center text-slate-400">Nenhum registro de produção encontrado.</td></tr>}</tbody> </table> </div> </Card> </div> )}
+            {view === 'fixed-expenses' && (
+                <div className="p-6 md:p-10 w-full max-w-[1600px] mx-auto flex gap-8 h-full overflow-hidden">
+                    <div className="w-1/3 flex flex-col gap-4">
+                        <div className="flex justify-between items-center mb-2"><h1 className="text-2xl font-bold text-slate-900 flex items-center gap-2"><TrendingUp className="text-amber-500"/> Despesas Fixas</h1><button onClick={() => handleEditExpense()} className="bg-slate-900 text-white p-2 rounded-lg hover:bg-slate-700"><Plus/></button></div>
+                        <div className="relative mb-2">
+                            <Calendar className="absolute left-3 top-2.5 text-slate-400" size={16}/>
+                            <select className="pl-9 pr-4 py-2 w-full bg-white border border-slate-200 rounded-lg text-sm focus:ring-2 focus:ring-amber-500 outline-none appearance-none cursor-pointer text-slate-600 font-medium" onChange={(e) => {}}>
+                                <option value="all">Todos os Anos</option>
+                                {[...new Set(expenses.map(e => e.year))].sort((a,b) => b-a).map(y => <option key={y} value={y}>{y}</option>)}
+                            </select>
+                        </div>
+                        <div className="flex-1 overflow-y-auto space-y-3 pr-2">
+                            {expenses.map(exp => (
+                                <Card key={exp.id} onClick={() => handleEditExpense(exp)} className={`p-4 cursor-pointer hover:border-amber-400 transition-all ${activeExpenseId === exp.id ? 'border-amber-500 ring-1 ring-amber-500 bg-amber-50' : ''}`} >
+                                    <div className="flex justify-between items-start mb-2"><div><span className="font-bold text-lg text-slate-800">{formatMonth(exp.month)} / {exp.year}</span><div className="text-xs text-slate-500">{exp.total_dishes_sold} pratos vendidos</div></div><div className="text-right"><div className="font-bold text-amber-600">{formatCurrency(exp.total_expenses)}</div><div className="text-[10px] font-bold uppercase text-slate-400">Total</div></div></div>
+                                    <div className="flex justify-between items-center pt-2 border-t border-slate-100"><span className="text-xs text-slate-500">Custo Fixo Unitário</span><span className="font-bold text-slate-700 bg-slate-100 px-2 py-0.5 rounded">{formatCurrency(exp.cost_per_dish)}</span></div>
+                                    <div className="flex justify-end mt-2"><button onClick={(e) => { e.stopPropagation(); confirmDelete('expenses', [exp.id]); }} className="text-slate-300 hover:text-red-500 p-1 z-10"><Trash2 size={14}/></button></div>
+                                </Card>
+                            ))}
+                            {expenses.length === 0 && <div className="text-center text-slate-400 py-10">Nenhum registro encontrado.</div>}
+                        </div>
+                    </div>
+                    <div className="flex-1 flex flex-col h-full overflow-hidden">
+                        {activeExpenseId ? (
+                            <Card className="flex-1 flex flex-col overflow-hidden h-full border-amber-200">
+                                <div className="p-6 border-b border-slate-100 bg-slate-50 flex justify-between items-center"><h3 className="font-bold text-lg text-slate-800 flex items-center gap-2">{activeExpenseId === 'new' ? 'Novo Registro' : 'Editar Registro'}</h3><div className="flex gap-2"><button onClick={() => setActiveExpenseId(null)} className="px-4 py-2 text-slate-500 hover:bg-slate-200 rounded-lg">Cancelar</button><button onClick={handleSaveExpense} className="bg-amber-500 hover:bg-amber-600 text-white px-6 py-2 rounded-lg font-bold shadow-lg shadow-amber-500/20 flex items-center gap-2"><Save size={18}/> Salvar</button></div></div>
+                                <div className="p-6 overflow-y-auto flex-1">
+                                    <div className="grid grid-cols-3 gap-6 mb-8"><InputGroup label="Mês"><StyledSelect value={expenseForm.month} onChange={e => setExpenseForm({...expenseForm, month: e.target.value})}>{Array.from({length:12}, (_,i) => <option key={i+1} value={i+1}>{formatMonth(i+1)}</option>)}</StyledSelect></InputGroup><InputGroup label="Ano"><StyledInput type="number" value={expenseForm.year} onChange={e => setExpenseForm({...expenseForm, year: e.target.value})} /></InputGroup><InputGroup label="Pratos Vendidos"><StyledInput type="number" value={expenseForm.dishes} onChange={e => setExpenseForm({...expenseForm, dishes: e.target.value})} /></InputGroup></div>
+                                    <h4 className="font-bold text-sm text-slate-500 uppercase tracking-wider mb-4 border-b pb-2 flex justify-between items-center">Detalhamento Financeiro</h4>
+                                    <div className="space-y-3">
+                                        {expenseForm.items.map((item, idx) => {
+                                            const category = categories.find(c => c.id === item.category_id);
+                                            return (
+                                                <div key={idx} className="flex justify-between items-center p-3 bg-slate-50 rounded-lg border border-slate-100 hover:border-amber-200 transition-colors gap-4">
+                                                    <div className="flex-1">
+                                                        <StyledSelect value={item.category_id} onChange={(e) => { const newItems = [...expenseForm.items]; newItems[idx].category_id = e.target.value; setExpenseForm({...expenseForm, items: newItems}); }}>
+                                                            <option value="" disabled>Selecione a Categoria</option>
+                                                            {expenseCategories.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
+                                                        </StyledSelect>
+                                                    </div>
+                                                    <div className="w-40 relative">
+                                                        <span className="absolute left-3 top-2.5 text-slate-400 text-xs">R$</span>
+                                                        <input type="number" className="w-full pl-8 pr-3 py-2 border border-slate-200 rounded-lg text-right font-mono font-medium focus:ring-2 focus:ring-amber-500 outline-none" placeholder="0.00" value={item.amount} onChange={(e) => { const newItems = [...expenseForm.items]; newItems[idx].amount = e.target.value; setExpenseForm({...expenseForm, items: newItems}); }}/>
+                                                    </div>
+                                                    <button onClick={() => { const newItems = expenseForm.items.filter((_, i) => i !== idx); setExpenseForm({...expenseForm, items: newItems}); }} className="p-2 text-slate-400 hover:text-red-500 transition-colors"><X size={18}/></button>
+                                                </div>
+                                            )
+                                        })}
+                                        <button onClick={() => setExpenseForm(prev => ({...prev, items: [...prev.items, { category_id: '', amount: '' }]}))} className="w-full py-2 border border-dashed border-slate-300 text-slate-500 rounded-lg hover:bg-slate-50 hover:text-slate-700 text-sm font-medium flex justify-center items-center gap-2 mb-4"><Plus size={16}/> Adicionar Linha de Despesa</button>
+                                        
+                                        <div className="mt-6 pt-4 border-t border-slate-100 bg-blue-50/50 p-4 rounded-xl">
+                                            <label className="text-xs font-bold text-blue-600 uppercase mb-2 block flex items-center gap-2"><Zap size={14}/> Cadastro Rápido de Categoria</label>
+                                            <div className="flex gap-2">
+                                                <input className="flex-1 bg-white border border-blue-200 text-slate-900 text-sm rounded-lg px-3 py-2 focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none placeholder:text-blue-300" placeholder="Digite o nome da nova categoria..." value={quickCatName} onChange={(e) => setQuickCatName(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && handleAddQuickCategory()} />
+                                                <button onClick={handleAddQuickCategory} disabled={!quickCatName.trim()} className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg font-bold text-sm shadow-sm transition-all disabled:opacity-50 disabled:cursor-not-allowed">Criar & Adicionar</button>
+                                            </div>
+                                            <p className="text-[10px] text-blue-400 mt-2 ml-1">Dica: Isso criará a categoria no sistema e já adicionará uma linha acima.</p>
+                                        </div>
+                                    </div>
+                                </div>
+                                <div className="bg-slate-900 text-white p-4 flex justify-between items-center"><div className="text-sm opacity-80">Total Despesas</div><div className="text-2xl font-bold">{formatCurrency(expenseForm.items.reduce((acc, i) => acc + (Number(i.amount)||0), 0))}</div></div>
+                            </Card>
+                        ) : (
+                            <div className="flex-1 flex flex-col items-center justify-center text-slate-300 bg-slate-50/50 rounded-xl border border-dashed border-slate-200"><Calculator size={48} className="mb-4 opacity-50"/><p>Selecione um mês ou crie um novo registro</p></div>
+                        )}
+                    </div>
+                </div>
+            )}
+
+            {view === 'categories' && (
+                <div className="p-10 max-w-4xl mx-auto">
+                    <h1 className="text-3xl font-bold text-slate-900 mb-8 flex items-center gap-3"><Settings className="text-slate-600"/> Configurações</h1>
+                    
+                    <div className="flex gap-4 mb-6 border-b border-slate-200 overflow-x-auto no-scrollbar">
+                        <button onClick={() => setCatTab('recipe')} className={`pb-3 px-4 font-bold text-sm transition-all border-b-2 whitespace-nowrap flex items-center gap-2 ${catTab === 'recipe' ? 'border-emerald-500 text-emerald-600' : 'border-transparent text-slate-500 hover:text-slate-700'}`}><ChefHat size={16}/> Categorias de Receitas</button>
+                        <button onClick={() => setCatTab('expense')} className={`pb-3 px-4 font-bold text-sm transition-all border-b-2 whitespace-nowrap flex items-center gap-2 ${catTab === 'expense' ? 'border-amber-500 text-amber-600' : 'border-transparent text-slate-500 hover:text-slate-700'}`}><TrendingUp size={16}/> Plano de Contas</button>
+                        <button onClick={() => setCatTab('platform')} className={`pb-3 px-4 font-bold text-sm transition-all border-b-2 whitespace-nowrap flex items-center gap-2 ${catTab === 'platform' ? 'border-purple-500 text-purple-600' : 'border-transparent text-slate-500 hover:text-slate-700'}`}><ShoppingBag size={16}/> Plataformas de Delivery</button>
+                    </div>
+
+                    {catTab === 'platform' ? (
+                        <>
+                            <Card className="p-6 mb-6 border-l-4 border-l-purple-500">
+                                <h3 className="font-bold text-slate-800 mb-4 text-sm flex items-center gap-2"><Plus size={16} className="text-purple-500"/> Adicionar Nova Plataforma</h3>
+                                <div className="flex gap-4 items-end">
+                                    <div className="flex-1"><label className="text-xs font-bold text-slate-500 uppercase mb-1 block">Nome da Plataforma</label><StyledInput placeholder="Ex: iFood, Rappi..." value={platformForm.name} onChange={e => setPlatformForm({...platformForm, name: e.target.value})} /></div>
+                                    <div className="w-40"><label className="text-xs font-bold text-slate-500 uppercase mb-1 block">Taxa (%)</label><div className="relative"><StyledInput type="number" placeholder="0" className="pr-8" value={platformForm.percentage} onChange={e => setPlatformForm({...platformForm, percentage: e.target.value})} /><span className="absolute right-3 top-2.5 text-slate-400 text-sm font-bold">%</span></div></div>
+                                    <button onClick={handleSavePlatform} disabled={!platformForm.name} className="bg-purple-600 hover:bg-purple-700 text-white px-6 py-2.5 rounded-lg font-bold shadow-lg shadow-purple-600/20 transition-all disabled:opacity-50 disabled:cursor-not-allowed h-[42px]">Salvar</button>
+                                </div>
+                            </Card>
+                            <div className="space-y-3">{deliveryPlatforms.map(plat => (<Card key={plat.id} className="p-4 flex justify-between items-center group hover:border-purple-200 transition-all"><div className="flex items-center gap-4"><div className="bg-purple-50 p-2 rounded-lg text-purple-600"><Bike size={20}/></div><div><span className="font-bold text-slate-800 block">{plat.name}</span><span className="text-xs text-slate-500">Taxa de serviço configurada</span></div></div><div className="flex items-center gap-6"><div className="text-right"><span className="text-2xl font-bold text-purple-700">{plat.percentage}%</span><span className="text-[10px] uppercase font-bold text-slate-400 block">Comissão</span></div><button onClick={() => confirmDelete('delivery_platforms', [plat.id])} className="text-slate-300 hover:text-red-500 p-2 rounded-full hover:bg-red-50 transition-colors"><Trash2 size={18}/></button></div></Card>))}</div>
+                        </>
+                    ) : (
+                        <>
+                            <Card className="p-6 mb-6">
+                                <div className="flex gap-4"><StyledInput placeholder={catTab === 'recipe' ? "Nova Categoria (ex: Entradas Frias)" : "Nova Conta (ex: Marketing)"} value={newCatInput} onChange={e => setNewCatInput(e.target.value)} /><button onClick={async () => { if(newCatInput) { await supabase.from('categories').insert({user_id: session.user.id, name: newCatInput, type: catTab}); setNewCatInput(''); fetchData(); } }} className={`text-white px-6 rounded-lg font-bold ${catTab === 'recipe' ? 'bg-emerald-600' : 'bg-amber-600'}`}>Adicionar</button></div>
+                            </Card>
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">{categories.filter(c => c.type === catTab).map(cat => (<Card key={cat.id} className="p-4 flex justify-between items-center group hover:shadow-md transition-all"><span className="font-medium text-slate-700">{cat.name}</span><button onClick={() => confirmDelete('categories', [cat.id])} className="text-slate-300 hover:text-red-500 opacity-0 group-hover:opacity-100 transition-opacity"><Trash2 size={16}/></button></Card>))}</div>
+                        </>
+                    )}
+                </div>
+            )}
+            
+            {view === 'production' && (
+                <div className="p-6 md:p-10 w-full max-w-7xl mx-auto">
+                    <header className="flex justify-between items-center mb-8">
+                        <div><h1 className="text-3xl font-bold text-slate-900 tracking-tight flex items-center gap-3"><ClipboardCheck className="text-emerald-600" size={32}/> Controle de Produção</h1><p className="text-slate-500 mt-1 ml-11">Realize a baixa de produção e compare custos Teóricos vs. Reais.</p></div>
+                        <button onClick={startProduction} className="bg-emerald-600 hover:bg-emerald-700 text-white px-5 py-2.5 rounded-lg font-bold shadow-lg shadow-emerald-600/20 flex items-center gap-2 transition-all transform active:scale-95"><Plus size={20} /> Nova Produção</button>
+                    </header>
+                    <div className="bg-white p-4 mb-6 rounded-xl border border-slate-200 shadow-sm flex flex-col md:flex-row gap-4 items-center">
+                        <div className="relative flex-1 w-full"><Search className="absolute left-3 top-2.5 text-slate-400" size={18}/><input placeholder="Buscar produção por nome da receita..." className="pl-10 pr-4 py-2 w-full bg-slate-50 border border-slate-200 rounded-lg text-sm focus:ring-2 focus:ring-emerald-500 outline-none transition-all placeholder:text-slate-400" value={productionSearch} onChange={e => setProductionSearch(e.target.value)} /></div>
+                        <div className="flex gap-3 w-full md:w-auto"><div className="relative flex-1 md:w-48"><Calendar className="absolute left-3 top-2.5 text-slate-400" size={16}/><select className="pl-9 pr-4 py-2 w-full bg-slate-50 border border-slate-200 rounded-lg text-sm focus:ring-2 focus:ring-emerald-500 outline-none appearance-none cursor-pointer text-slate-600 font-medium" value={productionDateFilter} onChange={e => setProductionDateFilter(e.target.value)}><option value="all">Todo o Período</option><option value="7days">Últimos 7 dias</option><option value="30days">Últimos 30 dias</option></select></div></div>
+                    </div>
+                    <Card className="overflow-hidden">
+                        <div className="overflow-x-auto">
+                            <table className="w-full text-left text-sm"><thead className="bg-slate-50 text-slate-500 font-semibold uppercase text-xs border-b border-slate-200"><tr><th className="p-4">Data</th><th className="p-4">Receita Produzida</th><th className="p-4 text-center">Tempo (Real)</th><th className="p-4 text-center">Rendimento (Real)</th><th className="p-4 text-right">Custo Total</th><th className="p-4 text-center">Variação</th><th className="p-4"></th></tr></thead>
+                                <tbody className="divide-y divide-slate-100">{productionRuns.filter(run => run.recipe_name.toLowerCase().includes(productionSearch.toLowerCase())).filter(run => { if (productionDateFilter === 'all') return true; const diffDays = Math.ceil(Math.abs(new Date().getTime() - new Date(run.created_at).getTime()) / (1000 * 60 * 60 * 24)); return productionDateFilter === '7days' ? diffDays <= 7 : diffDays <= 30; }).map(run => { const variance = Number(run.planned_cost) > 0 ? ((Number(run.actual_cost) - Number(run.planned_cost)) / Number(run.planned_cost)) * 100 : 0; return (<tr key={run.id} className="hover:bg-slate-50 transition-colors"><td className="p-4 text-slate-600">{formatDate(run.created_at)}</td><td className="p-4 font-bold text-slate-800">{run.recipe_name}</td><td className="p-4 text-center text-slate-600">{run.actual_time_minutes} min</td><td className="p-4 text-center text-slate-600">{run.actual_yield} un</td><td className="p-4 text-right font-mono font-medium text-slate-700">{formatCurrency(run.actual_cost)}</td><td className="p-4 text-center"><span className={`px-2 py-1 rounded text-xs font-bold ${Math.abs(variance) < 2 ? 'bg-slate-100 text-slate-500' : variance > 0 ? 'bg-red-100 text-red-700' : 'bg-emerald-100 text-emerald-700'}`}>{variance > 0 ? '+' : ''}{variance.toFixed(1)}%</span></td><td className="p-4 text-right flex gap-2 justify-end"><button onClick={() => { setViewingProduction(run); setView('production-wizard'); setProdWizardStep(3); }} className="text-slate-300 hover:text-blue-500"><Eye size={16}/></button><button onClick={() => confirmDelete('production', [run.id])} className="text-slate-300 hover:text-red-500"><Trash2 size={16}/></button></td></tr>) })} {productionRuns.length === 0 && <tr><td colSpan={7} className="p-12 text-center text-slate-400">Nenhum registro de produção encontrado.</td></tr>}</tbody>
+                            </table>
+                        </div>
+                    </Card>
+                </div>
+            )}
             
             {view === 'recipe-editor' && currentRecipe && (
                 <div className="absolute inset-0 z-50 bg-slate-50 flex flex-col h-full w-full">
                     <div className="bg-white border-b border-slate-200 px-6 py-3 flex justify-between items-center shadow-sm shrink-0">
-                         <div className="flex items-center gap-4 flex-1"><button onClick={handleBackFromEditor} className="p-2 hover:bg-slate-100 rounded-lg text-slate-500 transition-colors"><ChevronLeft/></button><div className="h-8 w-px bg-slate-200"></div><input className="text-xl font-bold bg-transparent outline-none placeholder-slate-300 w-full text-slate-800" placeholder="Nome da Ficha Técnica" value={currentRecipe.name} onChange={e => {setCurrentRecipe({...currentRecipe, name: e.target.value}); setHasUnsavedChanges(true); }} autoFocus/></div>
+                         <div className="flex items-center gap-4 flex-1"><button onClick={() => { if(hasUnsavedChanges) setShowUnsavedModal(true); else setView(currentRecipe.type === 'drink' ? 'drinks' : currentRecipe.type === 'sub_recipe' ? 'sub_recipes' : 'recipes'); }} className="p-2 hover:bg-slate-100 rounded-lg text-slate-500 transition-colors"><ChevronLeft/></button><div className="h-8 w-px bg-slate-200"></div><input className="text-xl font-bold bg-transparent outline-none placeholder-slate-300 w-full text-slate-800" placeholder="Nome da Ficha Técnica" value={currentRecipe.name} onChange={e => {setCurrentRecipe({...currentRecipe, name: e.target.value}); setHasUnsavedChanges(true); }} autoFocus/></div>
                          <div className="flex gap-3 items-center"><button onClick={() => { setCurrentRecipe({...currentRecipe, status: currentRecipe.status === 'active' ? 'inactive' : 'active'}); setHasUnsavedChanges(true); }} className={`px-4 py-1.5 rounded-full text-xs font-bold flex items-center gap-2 border transition-all ${currentRecipe.status === 'active' ? 'bg-emerald-50 text-emerald-700 border-emerald-200' : 'bg-slate-50 text-slate-500 border-slate-200'}`}>{currentRecipe.status === 'active' ? <ToggleRight size={18}/> : <ToggleLeft size={18}/>} {currentRecipe.status === 'active' ? 'Ativo' : 'Inativo'}</button><div className="h-6 w-px bg-slate-200 mx-2"></div><button onClick={() => setView('print-preview')} className="flex items-center gap-2 text-slate-600 px-4 py-2 rounded-lg hover:bg-slate-100 font-medium transition-colors"><Printer size={18}/> Imprimir</button><button onClick={saveRecipe} className="bg-slate-900 text-white px-6 py-2 rounded-lg shadow-lg hover:bg-slate-800 flex items-center gap-2 font-bold transition-all transform active:scale-95"><Save size={18}/> Salvar</button></div>
                     </div>
                     <div className="flex-1 overflow-hidden flex flex-row">
@@ -1429,24 +1536,34 @@ function HubChefApp() {
                                          suggested = div > 0 ? costs.costPerPortion / div : 0; 
                                      } else { suggested = costs.costPerPortion * (1 + targetDec); }
 
+                                     // Delivery Intelligent Pricing Logic
                                      let suggestedDeliveryPrice = 0;
                                      let deliveryMargin = 0;
                                      const selectedPlatform = deliveryPlatforms.find(p => p.id === currentRecipe.delivery_platform_id);
                                      
                                      if (selectedPlatform) {
-                                         const taxRate = Number(currentRecipe!.taxes_pct || 0) / 100;
-                                         const cardRate = Number(currentRecipe!.card_fee_pct || 0) / 100;
-                                         const grossCounterRevenue = costs.price * (1 - taxRate - cardRate);
-                                         const counterProfit = grossCounterRevenue - costs.totalCost;
+                                         // 1. Calculate Profit ($) at Counter (Simulated as if no platform is selected to get baseline)
+                                         // To do this accurately without modifying state, we calc manually:
+                                         const taxRate = Number(currentRecipe.taxes_pct) / 100;
+                                         const cardRate = Number(currentRecipe.card_fee_pct) / 100;
                                          
-                                         const platRate = Number(selectedPlatform.percentage || 0) / 100;
-                                         const extraDelCost = Number(currentRecipe!.extra_delivery_fee || 0);
+                                         // Revenue at Counter = Price * (1 - Tax - Card)
+                                         const grossCounterRevenue = costs.price * (1 - taxRate - cardRate);
+                                         const counterProfit = grossCounterRevenue - costs.totalCost; // Profit without platform fee
+                                         
+                                         // 2. Calculate Delivery Price needed to maintain same Profit ($)
+                                         // Formula: Price_Del * (1 - Tax - Card - Platform%) - TotalCost - ExtraDelCost = CounterProfit
+                                         // Price_Del * (1 - Tax - Card - Platform%) = CounterProfit + TotalCost + ExtraDelCost
+                                         const platRate = selectedPlatform.percentage / 100;
+                                         const extraDelCost = Number(currentRecipe.extra_delivery_fee) || 0;
+                                         
                                          const divisor = 1 - taxRate - cardRate - platRate;
                                          
                                          if (divisor > 0) {
                                              suggestedDeliveryPrice = (costs.totalCost + extraDelCost + counterProfit) / divisor;
                                          }
 
+                                         // 3. Calculate Margin if selling at CURRENT price on delivery
                                          const currentPrice = costs.price;
                                          const totalDeductions = currentPrice * (taxRate + cardRate + platRate) + extraDelCost;
                                          const currentDeliveryProfit = currentPrice - costs.totalCost - totalDeductions;
@@ -1486,7 +1603,7 @@ function HubChefApp() {
                                                                 </div>
                                                             </div>
 
-                                                            <div className="grid grid-cols-2 gap-2"><div><label className="text-[9px] font-bold text-purple-400 mb-1 block">Taxa Extra (R$)</label><input className="w-full bg-white border border-purple-200 rounded px-2 py-1 text-xs outline-none focus:ring-1 focus:ring-purple-500" type="number" placeholder="0.00" value={currentRecipe.extra_delivery_fee || 0} onChange={e => {setCurrentRecipe({...currentRecipe, extra_delivery_fee: Number(e.target.value)}); setHasUnsavedChanges(true);}} /></div><div><label className="text-[9px] font-bold text-purple-400 mb-1 block text-right">Comissão ({Number(selectedPlatform.percentage)}%)</label><div className="text-right font-mono font-medium text-purple-700 text-xs pt-1">{formatCurrency(costs.platformFee)}</div></div></div>
+                                                            <div className="grid grid-cols-2 gap-2"><div><label className="text-[9px] font-bold text-purple-400 mb-1 block">Taxa Extra (R$)</label><input className="w-full bg-white border border-purple-200 rounded px-2 py-1 text-xs outline-none focus:ring-1 focus:ring-purple-500" type="number" placeholder="0.00" value={currentRecipe.extra_delivery_fee || 0} onChange={e => {setCurrentRecipe({...currentRecipe, extra_delivery_fee: Number(e.target.value)}); setHasUnsavedChanges(true);}} /></div><div><label className="text-[9px] font-bold text-purple-400 mb-1 block text-right">Comissão ({selectedPlatform.percentage}%)</label><div className="text-right font-mono font-medium text-purple-700 text-xs pt-1">{formatCurrency(costs.platformFee)}</div></div></div>
                                                         </div>
                                                     )}
                                                 </div>
@@ -1502,48 +1619,6 @@ function HubChefApp() {
                 </div>
             )}
 
-            {/* MOVED MODALS OUTSIDE OF SCROLL AREA AND CONDITIONAL VIEWS TO ENSURE THEY WORK AND ARE CLICKABLE */}
-            
-            {showImportModal && ( <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm flex items-center justify-center z-[100]"><div className={`bg-white p-8 rounded-2xl shadow-2xl w-full border border-slate-100 transform transition-all scale-100 ${isImportReviewStep ? 'max-w-4xl' : 'max-w-lg'}`}><div className="flex justify-between mb-6 items-center"><h3 className="font-bold text-xl text-slate-800 flex items-center gap-2"><Download className="text-blue-500"/> {isImportReviewStep ? 'Revisar Dados' : 'Importar Dados'}</h3><button onClick={() => setShowImportModal(false)} className="text-slate-400 hover:text-slate-600"><X/></button></div>{!isImportReviewStep ? (<><div className="mb-4 text-sm text-slate-500 bg-blue-50 p-4 rounded-lg border border-blue-100">Cole seus dados do Excel/CSV abaixo. O sistema identificará automaticamente:<br/><span className="font-mono text-xs text-blue-700 mt-1 block">Nome | Preço | Embalagem | Rendimento</span><span className="text-xs text-slate-400 mt-1 block">Ex: Acafrao | R$ 30,00 | 1 kg | 100%</span></div><textarea className="w-full h-40 border border-slate-300 rounded-lg p-3 text-xs font-mono mb-6 focus:ring-2 focus:ring-blue-500 outline-none" placeholder="Cole seus dados aqui..." value={importText} onChange={e => setImportText(e.target.value)}></textarea><button onClick={handlePreviewImport} disabled={!importText.trim()} className="w-full bg-blue-600 hover:bg-blue-700 text-white py-3 rounded-lg font-bold shadow-lg shadow-blue-600/20 transition-all flex justify-center items-center gap-2">Processar Texto</button></>) : (<><div className="max-h-[500px] overflow-y-auto mb-6 border rounded-lg"><table className="w-full text-sm text-left"><thead className="bg-slate-50 text-slate-500 font-semibold text-xs sticky top-0"><tr><th className="p-3">Nome</th><th className="p-3">Preço</th><th className="p-3">Emb.</th><th className="p-3">Rend.</th><th className="p-3">Status</th></tr></thead><tbody className="divide-y divide-slate-100">{importPreviewData.map((item, idx) => (<tr key={idx} className={item.isValid ? 'bg-white' : 'bg-red-50'}><td className="p-3 font-medium">{item.name}</td><td className="p-3">{formatCurrency(item.price)}</td><td className="p-3">{item.package_qty} {item.unit}</td><td className="p-3">{item.yield_factor}%</td><td className="p-3">{item.isValid ? <span className="text-emerald-600 text-xs font-bold flex items-center gap-1"><CheckCircle size={14}/> Válido</span> : <span className="text-red-600 text-xs font-bold flex items-center gap-1"><AlertCircle size={14}/> {item.errorMsg}</span>}</td></tr>))}</tbody></table></div><div className="flex justify-between items-center bg-slate-50 p-4 rounded-lg"><div className="text-sm text-slate-600"><span className="font-bold text-slate-800">{importPreviewData.filter(i => i.isValid).length}</span> itens válidos prontos para importar.</div><div className="flex gap-3"><button onClick={() => setIsImportReviewStep(false)} className="text-slate-600 px-4 py-2 hover:bg-slate-200 rounded-lg">Voltar</button><button onClick={executeImport} disabled={isProcessingImport || importPreviewData.filter(i => i.isValid).length === 0} className="bg-emerald-600 hover:bg-emerald-700 text-white px-6 py-2 rounded-lg font-bold shadow-lg flex items-center gap-2">{isProcessingImport && <Loader2 className="animate-spin" size={18}/>} Confirmar Importação</button></div></div></>)}</div></div> )}
-            
-            {deleteModal.open && (<div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm flex items-center justify-center z-[150]"><div className="bg-white p-8 rounded-2xl shadow-2xl w-full max-w-sm text-center border border-slate-100 animate-in zoom-in-95 duration-200"><div className="bg-red-100 w-16 h-16 rounded-full flex items-center justify-center mx-auto mb-6"><Trash2 className="text-red-600" size={32}/></div><h3 className="font-bold text-xl text-slate-900 mb-2">{deleteModal.title}</h3><p className="text-sm text-slate-500 mb-8 leading-relaxed">{deleteModal.message}</p><div className="flex flex-col gap-3"><button onClick={executeDelete} disabled={isDeleting} className="w-full bg-red-600 hover:bg-red-700 text-white py-3 rounded-xl font-bold shadow-lg shadow-red-600/20 transition-all flex justify-center items-center gap-2">{isDeleting ? <Loader2 className="animate-spin" size={20}/> : 'Sim, Excluir'}</button><button onClick={() => setDeleteModal(prev => ({ ...prev, open: false }))} disabled={isDeleting} className="w-full bg-white border border-slate-200 text-slate-700 hover:bg-slate-50 py-3 rounded-xl font-medium transition-all">Cancelar</button></div></div></div>)}
-            
-            {showUnsavedModal && (
-                <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm flex items-center justify-center z-[9999]">
-                    <div className="bg-white p-8 rounded-2xl shadow-2xl w-full max-w-sm text-center border border-slate-100 animate-in zoom-in-95 duration-200">
-                        <div className="bg-amber-100 w-16 h-16 rounded-full flex items-center justify-center mx-auto mb-6">
-                            <AlertTriangle className="text-amber-500" size={32}/>
-                        </div>
-                        <h3 className="font-bold text-xl text-slate-800 mb-2">Alterações não salvas</h3>
-                        <p className="text-sm text-slate-500 mb-8">
-                            Você tem alterações pendentes em <strong>{currentRecipe?.name || 'Nova Receita'}</strong>. 
-                            O que deseja fazer?
-                        </p>
-                        <div className="flex flex-col gap-3">
-                            <button 
-                                onClick={saveRecipe} 
-                                className="bg-emerald-600 hover:bg-emerald-700 text-white py-3 rounded-xl font-bold shadow-lg shadow-emerald-600/20 transition-all flex justify-center items-center gap-2"
-                            >
-                                <Save size={18}/> Salvar e Sair
-                            </button>
-                            <button 
-                                onClick={handleDiscardChanges} 
-                                className="bg-white border-2 border-red-100 text-red-600 hover:bg-red-50 hover:border-red-200 py-3 rounded-xl font-bold transition-all flex justify-center items-center gap-2"
-                            >
-                                <Trash2 size={18}/> Descartar Alterações
-                            </button>
-                            <button 
-                                onClick={() => { setShowUnsavedModal(false); setPendingView(null); }} 
-                                className="text-slate-400 hover:text-slate-600 font-medium text-sm mt-1 py-2"
-                            >
-                                Continuar Editando
-                            </button>
-                        </div>
-                    </div>
-                </div>
-            )}
-
-            {/* Other Modals that were previously possibly hidden */}
             {showUpdateConfirm && (
                 <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm flex items-center justify-center z-[9999]">
                     <div className="bg-white p-8 rounded-2xl shadow-2xl w-full max-w-md border border-slate-100 animate-in zoom-in-95 duration-200">
@@ -1555,10 +1630,11 @@ function HubChefApp() {
                     </div>
                 </div>
             )}
-            
             {showAddProdItemModal && (<div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm flex items-center justify-center z-[9999]"><div className="bg-white p-6 rounded-2xl shadow-2xl w-full max-w-sm border border-slate-100"><div className="flex justify-between items-center mb-4"><h3 className="font-bold text-lg text-slate-800">Adicionar Insumo Extra</h3><button onClick={() => setShowAddProdItemModal(false)}><X size={20} className="text-slate-400 hover:text-slate-600"/></button></div><div className="mb-4"><label className="text-xs font-bold text-slate-500 uppercase mb-2 block">Selecione o Insumo</label><StyledSelect value={selectedExtraIngredientId} onChange={e => setSelectedExtraIngredientId(e.target.value)}><option value="">Selecione...</option>{ingredients.map(ing => <option key={ing.id} value={ing.id}>{ing.name}</option>)}</StyledSelect></div><button onClick={addExtraProdItem} disabled={!selectedExtraIngredientId} className="w-full bg-blue-600 hover:bg-blue-700 text-white py-2 rounded-lg font-bold disabled:opacity-50 transition-all">Adicionar à Produção</button></div></div>)}
             {view === 'production-wizard' && (<div className="absolute inset-0 bg-slate-50 z-50 flex flex-col"><div className="bg-white border-b border-slate-200 p-6 flex justify-between items-center shadow-sm"><h3 className="text-xl font-bold text-slate-900 flex items-center gap-2">{viewingProduction ? <Eye className="text-blue-500"/> : <ClipboardCheck className="text-emerald-500"/>} {viewingProduction ? 'Detalhes da Produção' : 'Nova Produção'}</h3><div className="flex gap-2">{!viewingProduction && prodWizardStep > 1 && <button onClick={() => setProdWizardStep(prodWizardStep-1)} className="text-slate-500 hover:bg-slate-100 px-4 py-2 rounded-lg">Voltar</button>}<button onClick={() => { setView('production'); setViewingProduction(null); }} className="text-slate-500 hover:text-red-500 px-4 py-2 hover:bg-slate-100 rounded-lg">Cancelar</button></div></div><div className="flex-1 overflow-y-auto p-8 max-w-5xl mx-auto w-full">{prodWizardStep === 1 && !viewingProduction && (<div className="space-y-6"><h2 className="text-2xl font-bold text-slate-800 text-center mb-8">O que vamos produzir hoje?</h2><div className="max-w-xl mx-auto relative"><Search className="absolute left-4 top-3.5 text-slate-400" size={20}/><input className="w-full pl-12 pr-4 py-3 bg-white border border-slate-300 rounded-xl shadow-sm focus:ring-2 focus:ring-emerald-500 outline-none text-lg" placeholder="Buscar receita ou base..." autoFocus onChange={(e) => setProductionSearch(e.target.value)}/></div><div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-8">{recipes.filter(r => r.name.toLowerCase().includes(productionSearch.toLowerCase()) && r.status === 'active').map(r => (<button key={r.id} onClick={() => initProductionFromRecipe(r.id!)} className="bg-white p-4 rounded-xl border border-slate-200 hover:border-emerald-500 hover:shadow-md transition-all text-left group"><div className="font-bold text-lg text-slate-800 group-hover:text-emerald-700">{r.name}</div><div className="text-sm text-slate-500">{r.category} • Rendimento: {r.portions} {r.type === 'sub_recipe' ? r.unit : 'un'}</div></button>))}</div></div>)}{(prodWizardStep === 2 || viewingProduction) && (<div className="space-y-8 animate-in slide-in-from-right-8 duration-300"><div className="grid grid-cols-3 gap-6"><Card className="p-5 border-l-4 border-l-emerald-500"><div className="text-xs font-bold text-slate-500 uppercase mb-1">Receita Base</div><div className="text-xl font-bold text-slate-800">{viewingProduction ? viewingProduction.recipe_name : currentProduction.recipe_name}</div></Card><Card className="p-5"><div className="text-xs font-bold text-slate-500 uppercase mb-1">Rendimento Planejado</div><div className="text-xl font-bold text-slate-800">{viewingProduction ? viewingProduction.planned_yield : currentProduction.planned_yield} un</div></Card><Card className="p-5"><div className="text-xs font-bold text-slate-500 uppercase mb-1">Custo Planejado</div><div className="text-xl font-bold text-slate-800">{formatCurrency(viewingProduction ? viewingProduction.planned_cost : currentProduction.planned_cost)}</div></Card></div><div className="grid grid-cols-1 lg:grid-cols-3 gap-8"><div className="lg:col-span-1 space-y-6"><Card className="p-6"><h3 className="font-bold text-slate-800 mb-4 flex items-center gap-2"><Timer className="text-emerald-500"/> Tempos Reais (min)</h3><div className="space-y-4"><div><label className="text-xs font-bold text-slate-500 uppercase">Prep (Mise en place)</label><StyledInput type="number" disabled={!!viewingProduction} value={viewingProduction ? 0 : currentProduction.actual_prep} onChange={e => !viewingProduction && setCurrentProduction({...currentProduction, actual_prep: Number(e.target.value)})} /></div><div><label className="text-xs font-bold text-slate-500 uppercase">Fogo/Cocção</label><StyledInput type="number" disabled={!!viewingProduction} value={viewingProduction ? 0 : currentProduction.actual_cook} onChange={e => !viewingProduction && setCurrentProduction({...currentProduction, actual_cook: Number(e.target.value)})} /></div><div><label className="text-xs font-bold text-slate-500 uppercase">Montagem/Finalização</label><StyledInput type="number" disabled={!!viewingProduction} value={viewingProduction ? 0 : currentProduction.actual_plating} onChange={e => !viewingProduction && setCurrentProduction({...currentProduction, actual_plating: Number(e.target.value)})} /></div><div className="pt-4 border-t border-slate-100 flex justify-between items-center"><span className="font-bold text-slate-700">Tempo Total</span> <span className="text-xl font-bold text-emerald-600">{viewingProduction ? viewingProduction.actual_time_minutes : ((Number(currentProduction.actual_prep) || 0) + (Number(currentProduction.actual_cook) || 0) + (Number(currentProduction.actual_plating) || 0))} min</span></div></div></Card><Card className="p-6 bg-emerald-50 border-emerald-100"><h3 className="font-bold text-emerald-800 mb-4 flex items-center gap-2"><Scale className="text-emerald-600"/> Rendimento Final</h3><div className="flex items-center gap-2"><input type="number" disabled={!!viewingProduction} className="w-full text-3xl font-bold bg-white border border-emerald-200 rounded-lg p-3 text-center text-emerald-900 outline-none focus:ring-2 focus:ring-emerald-500" placeholder="0" value={viewingProduction ? viewingProduction.actual_yield : currentProduction.actual_yield} onChange={e => !viewingProduction && setCurrentProduction({...currentProduction, actual_yield: Number(e.target.value)})} /><span className="text-sm font-bold text-emerald-600 uppercase">Unidades</span></div></Card></div><div className="lg:col-span-2 space-y-6"><Card className="p-6"><div className="flex justify-between items-center mb-4"><h3 className="font-bold text-slate-800 flex items-center gap-2"><List className="text-blue-500"/> Baixa de Insumos</h3>{!viewingProduction && <button onClick={() => setShowAddProdItemModal(true)} className="text-xs bg-slate-100 hover:bg-slate-200 px-3 py-1.5 rounded text-slate-600 font-bold flex items-center gap-1 transition-colors"><Plus size={14}/> Add Extra</button>}</div><div className="overflow-x-auto"><table className="w-full text-sm"><thead className="bg-slate-50 text-slate-500 text-xs font-bold uppercase"><tr><th className="p-3 text-left">Item</th><th className="p-3 text-center">Plan</th><th className="p-3 text-center w-32">Real Utilizado</th><th className="p-3 text-right">Custo</th></tr></thead><tbody className="divide-y divide-slate-100">{(viewingProduction ? viewingProduction.items : currentProduction.items || []).map((item, idx) => (<tr key={idx}><td className="p-3 font-medium text-slate-700">{item.item_name}</td><td className="p-3 text-center text-slate-500">{item.planned_qty} {item.unit}</td><td className="p-3"><div className="relative"><input type="number" disabled={!!viewingProduction} className={`w-full text-center border rounded py-1 px-2 font-bold outline-none focus:ring-2 ${item.actual_qty > item.planned_qty ? 'border-red-300 text-red-600 bg-red-50' : 'border-slate-200 text-slate-700'}`} value={item.actual_qty} onChange={e => { if(viewingProduction) return; const newItems = [...currentProduction.items!]; newItems[idx].actual_qty = Number(e.target.value); setCurrentProduction({...currentProduction, items: newItems}); }} /><span className="absolute right-2 top-1.5 text-xs text-slate-400 pointer-events-none">{item.unit}</span></div></td><td className="p-3 text-right font-mono text-slate-700">{formatCurrency(Number(item.actual_qty) * Number(item.unit_cost))}</td></tr>))}</tbody></table></div></Card>{!viewingProduction && (<Card className="p-6 border-l-4 border-l-purple-500"><div className="flex justify-between items-center mb-4"><h3 className="font-bold text-slate-800 flex items-center gap-2"><List className="text-purple-500"/> Sequência Operacional</h3><button onClick={addOpStep} className="text-xs bg-purple-50 text-purple-700 hover:bg-purple-100 border border-purple-200 px-3 py-1.5 rounded-lg font-bold flex items-center gap-1 transition-colors"><Plus size={14}/> Nova Ação</button></div><div className="space-y-3">{currentProduction.steps.length === 0 && (<div className="text-center py-8 text-slate-400 text-sm border-2 border-dashed border-slate-100 rounded-xl bg-slate-50/50"><Clock size={24} className="mx-auto mb-2 opacity-20"/><p>Nenhuma etapa registrada.</p><p className="text-xs mt-1">Detalhe o tempo gasto em cada processo.</p></div>)}</div>{currentProduction.steps.length > 0 && (<div className="mt-4 pt-4 border-t border-slate-100 flex justify-end gap-4 text-xs font-bold text-slate-500"><span>Prep: {currentProduction.steps.filter(s => s.category === 'prep').reduce((acc, step) => acc + (Number(step.time_minutes) || 0), 0)}m</span><span>Fogo: {currentProduction.steps.filter(s => s.category === 'cook').reduce((acc, step) => acc + (Number(step.time_minutes) || 0), 0)}m</span><span>Montagem: {currentProduction.steps.filter(s => s.category === 'plating').reduce((acc, step) => acc + (Number(step.time_minutes) || 0), 0)}m</span></div>)}<div className="space-y-3 mt-4">{currentProduction.steps.map((step, idx) => (<div key={step.id} className="flex gap-3 items-center p-3 bg-slate-50 rounded-lg border border-slate-100 group hover:border-purple-200 transition-colors"><div className="w-32 shrink-0"><StyledSelect className="py-2 text-xs font-bold bg-white" value={step.category} onChange={(e) => updateOpStep(step.id, 'category', e.target.value)}><option value="prep">Mise en place</option><option value="cook">Cocção / Fogo</option><option value="plating">Montagem</option></StyledSelect></div><div className="flex-1"><input className="w-full bg-transparent border-b border-transparent focus:border-purple-300 outline-none text-sm text-slate-700 placeholder:text-slate-400 py-1" placeholder="Descreva a ação realizada..." value={step.description} onChange={(e) => updateOpStep(step.id, 'description', e.target.value)} autoFocus={!step.description} /></div><div className="w-20 relative shrink-0"><input type="number" className="w-full bg-white border border-slate-200 rounded-lg py-1.5 pl-2 pr-6 text-sm outline-none focus:ring-2 focus:ring-purple-500 text-center font-bold text-slate-700" placeholder="0" value={step.time_minutes || ''} onChange={(e) => updateOpStep(step.id, 'time_minutes', Number(e.target.value))} /><span className="absolute right-2 top-1.5 text-[10px] text-slate-400 pointer-events-none font-bold">min</span></div><button onClick={() => { const newSteps = currentProduction.steps.filter(s => s.id !== step.id); const newPrep = newSteps.filter(s => s.category === 'prep').reduce((acc, step) => acc + (Number(step.time_minutes) || 0), 0); const newCook = newSteps.filter(s => s.category === 'cook').reduce((acc, step) => acc + (Number(step.time_minutes) || 0), 0); const newPlate = newSteps.filter(s => s.category === 'plating').reduce((acc, step) => acc + (Number(step.time_minutes) || 0), 0); setCurrentProduction(prev => ({ ...prev, steps: newSteps, actual_prep: newPrep, actual_cook: newCook, actual_plating: newPlate, actual_time_minutes: newPrep + newCook + newPlate })); }} className="p-2 text-slate-300 hover:text-red-500 hover:bg-red-50 rounded-lg transition-colors"><Trash2 size={16}/></button></div>))}</div></Card>)}<Card className="p-6"><h3 className="font-bold text-slate-800 mb-4 flex items-center gap-2"><FileText className="text-slate-400"/> Observações / Ocorrências</h3><textarea className="w-full h-32 border border-slate-200 rounded-lg p-3 text-sm focus:ring-2 focus:ring-emerald-500 outline-none resize-none" placeholder="Descreva problemas na produção, quebras, ou detalhes do processo..." disabled={!!viewingProduction} value={viewingProduction ? viewingProduction.notes : currentProduction.notes} onChange={e => !viewingProduction && setCurrentProduction({...currentProduction, notes: e.target.value})} /></Card>{!viewingProduction && (<div className="flex justify-end pt-4"><button onClick={initiateProductionSave} className="bg-emerald-600 hover:bg-emerald-700 text-white px-8 py-3 rounded-xl font-bold shadow-lg shadow-emerald-600/20 flex items-center gap-2 transform active:scale-95 transition-all text-lg"><Save size={20}/> Finalizar Produção</button></div>)}</div></div></div></div>)}
-
+            {showImportModal && ( <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm flex items-center justify-center z-[100]"><div className={`bg-white p-8 rounded-2xl shadow-2xl w-full border border-slate-100 transform transition-all scale-100 ${isImportReviewStep ? 'max-w-4xl' : 'max-w-lg'}`}><div className="flex justify-between mb-6 items-center"><h3 className="font-bold text-xl text-slate-800 flex items-center gap-2"><Download className="text-blue-500"/> {isImportReviewStep ? 'Revisar Dados' : 'Importar Dados'}</h3><button onClick={() => setShowImportModal(false)} className="text-slate-400 hover:text-slate-600"><X/></button></div>{!isImportReviewStep ? (<><div className="mb-4 text-sm text-slate-500 bg-blue-50 p-4 rounded-lg border border-blue-100">Cole seus dados do Excel/CSV abaixo. O sistema identificará automaticamente:<br/><span className="font-mono text-xs text-blue-700 mt-1 block">Nome | Preço | Embalagem | Rendimento</span><span className="text-xs text-slate-400 mt-1 block">Ex: Acafrao | R$ 30,00 | 1 kg | 100%</span></div><textarea className="w-full h-40 border border-slate-300 rounded-lg p-3 text-xs font-mono mb-6 focus:ring-2 focus:ring-blue-500 outline-none" placeholder="Cole seus dados aqui..." value={importText} onChange={e => setImportText(e.target.value)}></textarea><button onClick={handlePreviewImport} disabled={!importText.trim()} className="w-full bg-blue-600 hover:bg-blue-700 text-white py-3 rounded-lg font-bold shadow-lg shadow-blue-600/20 transition-all flex justify-center items-center gap-2">Processar Texto</button></>) : (<><div className="max-h-[500px] overflow-y-auto mb-6 border rounded-lg"><table className="w-full text-sm text-left"><thead className="bg-slate-50 text-slate-500 font-semibold text-xs sticky top-0"><tr><th className="p-3">Nome</th><th className="p-3">Preço</th><th className="p-3">Emb.</th><th className="p-3">Rend.</th><th className="p-3">Status</th></tr></thead><tbody className="divide-y divide-slate-100">{importPreviewData.map((item, idx) => (<tr key={idx} className={item.isValid ? 'bg-white' : 'bg-red-50'}><td className="p-3 font-medium">{item.name}</td><td className="p-3">{formatCurrency(item.price)}</td><td className="p-3">{item.package_qty} {item.unit}</td><td className="p-3">{item.yield_factor}%</td><td className="p-3">{item.isValid ? <span className="text-emerald-600 text-xs font-bold flex items-center gap-1"><CheckCircle size={14}/> Válido</span> : <span className="text-red-600 text-xs font-bold flex items-center gap-1"><AlertCircle size={14}/> {item.errorMsg}</span>}</td></tr>))}</tbody></table></div><div className="flex justify-between items-center bg-slate-50 p-4 rounded-lg"><div className="text-sm text-slate-600"><span className="font-bold text-slate-800">{importPreviewData.filter(i => i.isValid).length}</span> itens válidos prontos para importar.</div><div className="flex gap-3"><button onClick={() => setIsImportReviewStep(false)} className="text-slate-600 px-4 py-2 hover:bg-slate-200 rounded-lg">Voltar</button><button onClick={executeImport} disabled={isProcessingImport || importPreviewData.filter(i => i.isValid).length === 0} className="bg-emerald-600 hover:bg-emerald-700 text-white px-6 py-2 rounded-lg font-bold shadow-lg flex items-center gap-2">{isProcessingImport && <Loader2 className="animate-spin" size={18}/>} Confirmar Importação</button></div></div></>)}</div></div> )}
+            {deleteModal.open && (<div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm flex items-center justify-center z-[150]"><div className="bg-white p-8 rounded-2xl shadow-2xl w-full max-w-sm text-center border border-slate-100 animate-in zoom-in-95 duration-200"><div className="bg-red-100 w-16 h-16 rounded-full flex items-center justify-center mx-auto mb-6"><Trash2 className="text-red-600" size={32}/></div><h3 className="font-bold text-xl text-slate-900 mb-2">{deleteModal.title}</h3><p className="text-sm text-slate-500 mb-8 leading-relaxed">{deleteModal.message}</p><div className="flex flex-col gap-3"><button onClick={executeDelete} disabled={isDeleting} className="w-full bg-red-600 hover:bg-red-700 text-white py-3 rounded-xl font-bold shadow-lg shadow-red-600/20 transition-all flex justify-center items-center gap-2">{isDeleting ? <Loader2 className="animate-spin" size={20}/> : 'Sim, Excluir'}</button><button onClick={() => setDeleteModal(prev => ({ ...prev, open: false }))} disabled={isDeleting} className="w-full bg-white border border-slate-200 text-slate-700 hover:bg-slate-50 py-3 rounded-xl font-medium transition-all">Cancelar</button></div></div></div>)}
+            {showUnsavedModal && (<div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm flex items-center justify-center z-[100]"><div className="bg-white p-8 rounded-2xl shadow-2xl w-full max-w-sm text-center border border-slate-100"><div className="bg-amber-100 w-16 h-16 rounded-full flex items-center justify-center mx-auto mb-6"><AlertTriangle className="text-amber-500" size={32}/></div><h3 className="font-bold text-xl text-slate-800 mb-2">Alterações não salvas</h3><p className="text-sm text-slate-500 mb-8">Você tem alterações pendentes. Se sair agora, perderá o progresso não salvo.</p><div className="flex flex-col gap-3"><button onClick={saveRecipe} className="bg-emerald-600 hover:bg-emerald-700 text-white py-3 rounded-xl font-bold shadow-lg shadow-emerald-600/20 transition-all">Salvar e Sair</button><button onClick={() => { setHasUnsavedChanges(false); setShowUnsavedModal(false); if(pendingView) { setView(pendingView); setPendingView(null); } else setView('recipes'); }} className="bg-white border border-slate-200 text-slate-600 hover:bg-slate-50 py-3 rounded-xl font-medium transition-all">Descartar Alterações</button></div></div></div>)}
             </div>
         </main>
     </div>
