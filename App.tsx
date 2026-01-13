@@ -1154,31 +1154,6 @@ function HubChefApp() {
                         {(() => {
                             const costs = getRecipeCosts(currentRecipe);
                             const isSub = currentRecipe.type === 'sub_recipe';
-                            
-                            // Delivery Intelligent Pricing Logic for PREVIEW
-                            let suggestedDeliveryPrice = 0;
-                            const selectedPlatform = deliveryPlatforms.find(p => p.id === currentRecipe.delivery_platform_id);
-                            
-                            if (selectedPlatform) {
-                                // 1. Calculate Profit ($) at Counter (No platform fee)
-                                const taxRate = Number(currentRecipe.taxes_pct) / 100;
-                                const cardRate = Number(currentRecipe.card_fee_pct) / 100;
-                                
-                                // Recalculate costs assuming NO platform to get pure counter profit
-                                const grossCounterRevenue = costs.price * (1 - taxRate - cardRate);
-                                const counterProfit = grossCounterRevenue - costs.totalCost; // Profit without platform fee
-
-                                // 2. Calculate Delivery Price needed to maintain same Profit ($)
-                                const platRate = selectedPlatform.percentage / 100;
-                                const extraDelCost = Number(currentRecipe.extra_delivery_fee) || 0;
-                                
-                                const divisor = 1 - taxRate - cardRate - platRate;
-                                
-                                if (divisor > 0) {
-                                    suggestedDeliveryPrice = (costs.totalCost + extraDelCost + counterProfit) / divisor;
-                                }
-                            }
-
                             const pieData = [
                                 { name: 'Insumos', value: costs.itemsCost, color: '#3b82f6' },
                                 { name: 'Extras/Fixo', value: costs.extra, color: '#f59e0b' },
@@ -1281,18 +1256,6 @@ function HubChefApp() {
                                                         <span className="text-sm font-bold text-purple-800">Lucro no Delivery</span>
                                                         <span className="font-mono font-bold text-purple-900">{formatCurrency(costs.profit)}</span>
                                                     </div>
-                                                    
-                                                    {selectedPlatform && (
-                                                        <div className="mt-4 pt-4 border-t border-purple-200">
-                                                            <div className="flex justify-between items-center">
-                                                                <span className="text-[10px] font-bold text-purple-600 uppercase">Preço Sugerido para o App</span>
-                                                                <div className="text-right">
-                                                                    <div className="font-bold text-xl text-purple-800 leading-none">{formatCurrency(suggestedDeliveryPrice)}</div>
-                                                                    <span className="text-[9px] text-purple-500">para manter lucro do balcão</span>
-                                                                </div>
-                                                            </div>
-                                                        </div>
-                                                    )}
                                                 </div>
                                                 <p className="text-[10px] text-purple-400 text-center">Os valores acima já estão deduzidos do lucro líquido apresentado nos KPIs.</p>
                                             </div>
@@ -1496,7 +1459,7 @@ function HubChefApp() {
                     <Card className="overflow-hidden">
                         <div className="overflow-x-auto">
                             <table className="w-full text-left text-sm"><thead className="bg-slate-50 text-slate-500 font-semibold uppercase text-xs border-b border-slate-200"><tr><th className="p-4">Data</th><th className="p-4">Receita Produzida</th><th className="p-4 text-center">Tempo (Real)</th><th className="p-4 text-center">Rendimento (Real)</th><th className="p-4 text-right">Custo Total</th><th className="p-4 text-center">Variação</th><th className="p-4"></th></tr></thead>
-                                <tbody className="divide-y divide-slate-100">{productionRuns.filter(run => run.recipe_name.toLowerCase().includes(productionSearch.toLowerCase())).filter(run => { if (productionDateFilter === 'all') return true; const diffDays = Math.ceil(Math.abs(new Date().getTime() - new Date(run.created_at).getTime()) / (1000 * 60 * 60 * 24)); return productionDateFilter === '7days' ? diffDays <= 7 : diffDays <= 30; }).map(run => { const variance = Number(run.planned_cost) > 0 ? ((Number(run.actual_cost) - Number(run.planned_cost)) / Number(run.planned_cost)) * 100 : 0; return (<tr key={run.id} className="hover:bg-slate-50 transition-colors"><td className="p-4 text-slate-600">{formatDate(run.created_at)}</td><td className="p-4 font-bold text-slate-800">{run.recipe_name}</td><td className="p-4 text-center text-slate-600">{run.actual_time_minutes} min</td><td className="p-4 text-center text-slate-600">{run.actual_yield} un</td><td className="p-4 text-right font-mono font-medium text-slate-700">{formatCurrency(run.actual_cost)}</td><td className="p-4 text-center"><span className={`px-2 py-1 rounded text-xs font-bold ${Math.abs(variance) < 2 ? 'bg-slate-100 text-slate-500' : variance > 0 ? 'bg-red-100 text-red-700' : 'bg-emerald-100 text-emerald-700'}`}>{variance > 0 ? '+' : ''}{variance.toFixed(1)}%</span></td><td className="p-4 text-right flex gap-2 justify-end"><button onClick={() => { setViewingProduction(run); setView('production-wizard'); setProdWizardStep(3); }} className="text-slate-300 hover:text-blue-500"><Eye size={16}/></button><button onClick={() => confirmDelete('production', [run.id])} className="text-slate-300 hover:text-red-500"><Trash2 size={16}/></button></td></tr>) })} {productionRuns.length === 0 && <tr><td colSpan={7} className="p-12 text-center text-slate-400">Nenhum registro de produção encontrado.</td></tr>}</tbody>
+                                <tbody className="divide-y divide-slate-100">{productionRuns.filter(run => run.recipe_name.toLowerCase().includes(productionSearch.toLowerCase())).filter(run => { if (productionDateFilter === 'all') return true; const diffDays = Math.ceil(Math.abs(Number(new Date()) - Number(new Date(run.created_at))) / (1000 * 60 * 60 * 24)); return productionDateFilter === '7days' ? diffDays <= 7 : diffDays <= 30; }).map(run => { const variance = Number(run.planned_cost) > 0 ? ((Number(run.actual_cost) - Number(run.planned_cost)) / Number(run.planned_cost)) * 100 : 0; return (<tr key={run.id} className="hover:bg-slate-50 transition-colors"><td className="p-4 text-slate-600">{formatDate(run.created_at)}</td><td className="p-4 font-bold text-slate-800">{run.recipe_name}</td><td className="p-4 text-center text-slate-600">{run.actual_time_minutes} min</td><td className="p-4 text-center text-slate-600">{run.actual_yield} un</td><td className="p-4 text-right font-mono font-medium text-slate-700">{formatCurrency(run.actual_cost)}</td><td className="p-4 text-center"><span className={`px-2 py-1 rounded text-xs font-bold ${Math.abs(variance) < 2 ? 'bg-slate-100 text-slate-500' : variance > 0 ? 'bg-red-100 text-red-700' : 'bg-emerald-100 text-emerald-700'}`}>{variance > 0 ? '+' : ''}{variance.toFixed(1)}%</span></td><td className="p-4 text-right flex gap-2 justify-end"><button onClick={() => { setViewingProduction(run); setView('production-wizard'); setProdWizardStep(3); }} className="text-slate-300 hover:text-blue-500"><Eye size={16}/></button><button onClick={() => confirmDelete('production', [run.id])} className="text-slate-300 hover:text-red-500"><Trash2 size={16}/></button></td></tr>) })} {productionRuns.length === 0 && <tr><td colSpan={7} className="p-12 text-center text-slate-400">Nenhum registro de produção encontrado.</td></tr>}</tbody>
                             </table>
                         </div>
                     </Card>
@@ -1542,25 +1505,24 @@ function HubChefApp() {
                                      const selectedPlatform = deliveryPlatforms.find(p => p.id === currentRecipe.delivery_platform_id);
                                      
                                      if (selectedPlatform) {
-                                         // 1. Calculate Profit ($) at Counter (Simulated as if no platform is selected to get baseline)
-                                         // To do this accurately without modifying state, we calc manually:
-                                         const taxRate = Number(currentRecipe.taxes_pct) / 100;
-                                         const cardRate = Number(currentRecipe.card_fee_pct) / 100;
-                                         
-                                         // Revenue at Counter = Price * (1 - Tax - Card)
-                                         const grossCounterRevenue = costs.price * (1 - taxRate - cardRate);
-                                         const counterProfit = grossCounterRevenue - costs.totalCost; // Profit without platform fee
+                                         // 1. Calculate Profit ($) at Counter
+                                         const counterProfit = costs.profit; // Already calc'd for current price
                                          
                                          // 2. Calculate Delivery Price needed to maintain same Profit ($)
-                                         // Formula: Price_Del * (1 - Tax - Card - Platform%) - TotalCost - ExtraDelCost = CounterProfit
-                                         // Price_Del * (1 - Tax - Card - Platform%) = CounterProfit + TotalCost + ExtraDelCost
+                                         // Formula: Price_Del * (1 - Tax - Card - Platform%) = Cost + Extras + Profit_Target
+                                         // Price_Del = (Cost + Extras + Profit_Target) / (1 - Tax - Card - Platform%)
+                                         const taxRate = Number(currentRecipe.taxes_pct) / 100;
+                                         const cardRate = Number(currentRecipe.card_fee_pct) / 100;
                                          const platRate = selectedPlatform.percentage / 100;
                                          const extraDelCost = Number(currentRecipe.extra_delivery_fee) || 0;
                                          
                                          const divisor = 1 - taxRate - cardRate - platRate;
                                          
                                          if (divisor > 0) {
-                                             suggestedDeliveryPrice = (costs.totalCost + extraDelCost + counterProfit) / divisor;
+                                             const targetNetRevenue = costs.totalCost + counterProfit + extraDelCost; 
+                                             // Note: totalCost includes all basic costs + extra fixed. 
+                                             // We simply need to cover Cost + Fixed + TargetProfit + Specific Delivery Costs
+                                             suggestedDeliveryPrice = targetNetRevenue / divisor;
                                          }
 
                                          // 3. Calculate Margin if selling at CURRENT price on delivery
@@ -1625,7 +1587,7 @@ function HubChefApp() {
                         <div className="bg-blue-100 w-16 h-16 rounded-full flex items-center justify-center mx-auto mb-6"><RefreshCw className="text-blue-600" size={32}/></div>
                         <h3 className="font-bold text-xl text-slate-900 mb-2 text-center">Finalizar e Atualizar?</h3>
                         <p className="text-sm text-slate-500 mb-6 text-center">Você deseja atualizar a Ficha Técnica original com os indicadores reais desta produção?</p>
-                        <div className="bg-slate-50 rounded-lg p-4 mb-6 text-sm"><div className="flex justify-between mb-2"><span>Rendimento:</span> <span className="font-bold text-slate-800">{currentProduction.planned_yield} <ArrowRight size={12} className="inline text-slate-400"/> {currentProduction.actual_yield}</span></div><div className="flex justify-between"><span>Tempo Total:</span> <span className="font-bold text-slate-800">{currentProduction.planned_time_minutes} min <ArrowRight size={12} className="inline text-slate-400"/> {(Number(currentProduction.actual_prep)||0)+(Number(currentProduction.actual_cook)||0)+(Number(currentProduction.actual_plating)||0)} min</span></div></div>
+                        <div className="bg-slate-50 rounded-lg p-4 mb-6 text-sm"><div className="flex justify-between mb-2"><span>Rendimento:</span> <span className="font-bold text-slate-800">{currentProduction.planned_yield} <ArrowRight size={12} className="inline text-slate-400"/> {currentProduction.actual_yield}</span></div><div className="flex justify-between"><span>Tempo Total:</span> <span className="font-bold text-slate-800">{currentProduction.planned_time_minutes} min <ArrowRight size={12} className="inline text-slate-400"/> {(currentProduction.actual_prep||0)+(currentProduction.actual_cook||0)+(currentProduction.actual_plating)||0} min</span></div></div>
                         <div className="flex flex-col gap-3"><button onClick={() => saveProductionRun(true)} className="w-full bg-blue-600 hover:bg-blue-700 text-white py-3 rounded-xl font-bold shadow-lg shadow-blue-600/20 transition-all">Sim, Atualizar Ficha Técnica</button><button onClick={() => saveProductionRun(false)} className="w-full bg-white border border-slate-200 text-slate-700 hover:bg-slate-50 py-3 rounded-xl font-medium transition-all">Não, Apenas Salvar Histórico</button><button onClick={() => setShowUpdateConfirm(false)} className="text-xs text-slate-400 hover:text-slate-600 mt-2">Cancelar</button></div>
                     </div>
                 </div>
