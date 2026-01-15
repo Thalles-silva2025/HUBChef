@@ -2,18 +2,18 @@ import React, { useState, useEffect, useRef, createContext, useContext } from 'r
 import { 
   Plus, Trash2, Save, FileText, DollarSign, 
   ChefHat, ArrowRight, Printer, History,
-  AlertTriangle, Scale, Edit2, TrendingUp,
-  PieChart, BarChart2, Activity, X, Loader2, Cloud, FileSpreadsheet, Download, Wine, Layers, ChevronLeft, Settings, ToggleLeft, ToggleRight, Target, Search, MoreHorizontal, Calendar, Box, CheckSquare, Square, AlertCircle, CheckCircle, Info, Calculator, ClipboardCheck, Timer, TrendingDown, ArrowUpRight, ArrowDownRight, Eye, RefreshCw, ClipboardList, List, Clock, RotateCcw, Zap, CheckCircle2,
-  Filter, SlidersHorizontal, ArrowUpDown, ShoppingBag, Bike, User, HelpCircle, Package, Divide, Hammer, ShieldAlert
+  Scale, Edit2, TrendingUp,
+  Activity, X, Loader2, Cloud, Download, Wine, Layers, ChevronLeft, Settings, ToggleLeft, Target, Search, MoreHorizontal, Calendar, CheckSquare, Square, AlertCircle, CheckCircle, Info, ClipboardCheck, Play, Book, RefreshCw, Eye, ArrowUpRight, CheckCircle2,
+  Hammer, Package
 } from 'lucide-react';
 import { 
-  BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip as ReTooltip, Legend, ResponsiveContainer, PieChart as RePieChart, Pie, Cell,
-  ScatterChart, Scatter, ZAxis, ReferenceLine, AreaChart, Area, ComposedChart, Line
+  BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip as ReTooltip, Legend, ResponsiveContainer,
+  ScatterChart, Scatter, ZAxis, ReferenceLine, Cell
 } from 'recharts';
 
 import { supabase } from './services/supabaseClient';
 import { Login } from './components/Login';
-import type { FixedExpense, Ingredient, Recipe, RecipeItemDB, Category, FixedExpenseItem, ProductionRun, ProductionItem, DeliveryPlatform } from './types';
+import type { FixedExpense, Ingredient, Recipe, RecipeItemDB, Category, ProductionRun, ProductionItem, DeliveryPlatform } from './types';
 
 // --- TOAST NOTIFICATION SYSTEM ---
 type ToastType = 'success' | 'error';
@@ -249,14 +249,8 @@ function HubChefApp() {
   
   // Filters State
   const [ingredientSearch, setIngredientSearch] = useState("");
-  const [ingredientSort, setIngredientSort] = useState("name");
-  
   const [recipeSearch, setRecipeSearch] = useState("");
-  const [recipeCategoryFilter, setRecipeCategoryFilter] = useState("all");
-  const [recipeSort, setRecipeSort] = useState("name");
-  
   const [productionSearch, setProductionSearch] = useState("");
-  const [productionDateFilter, setProductionDateFilter] = useState("all");
 
   // Selection State
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
@@ -341,7 +335,6 @@ function HubChefApp() {
 
     try {
         const { data: platData, error } = await supabase.from('delivery_platforms').select('*').order('name');
-        
         if (error) {
             console.warn("Table delivery_platforms likely missing. Using mocks for demonstration.");
             const defaultPlatforms = [
@@ -567,16 +560,41 @@ function HubChefApp() {
       return <button type="button" onClick={() => { if(hasUnsavedChanges) { setPendingView(target); setShowUnsavedModal(true); } else { setView(target); setMobileMenuOpen(false); setSelectedIds(new Set()); } }} className={`w-full flex items-center gap-3 px-4 py-3 rounded-lg transition-all duration-200 group relative ${active ? 'bg-emerald-600/10 text-emerald-500 font-medium' : 'text-slate-400 hover:text-slate-100 hover:bg-slate-800'}`}><Icon size={20} className={active ? 'text-emerald-500' : 'group-hover:text-white transition-colors'} strokeWidth={active ? 2.5 : 2} />{isSidebarOpen && <span>{label}</span>}</button>;
   }
 
+  // --- HANDLERS FOR NAVIGATION ---
+  const handleBackFromEditor = () => {
+    const targetView = currentRecipe?.type === 'drink' ? 'drinks' : currentRecipe?.type === 'sub_recipe' ? 'sub_recipes' : 'recipes';
+    if(hasUnsavedChanges) {
+        setPendingView(targetView);
+        setShowUnsavedModal(true);
+    } else {
+        setView(targetView);
+    }
+  };
+
+  const handleDiscardChanges = () => {
+    setHasUnsavedChanges(false);
+    setShowUnsavedModal(false);
+    if(pendingView) {
+        setView(pendingView);
+        setPendingView(null);
+    } else {
+        const target = currentRecipe?.type === 'drink' ? 'drinks' : currentRecipe?.type === 'sub_recipe' ? 'sub_recipes' : 'recipes';
+        setView(target);
+    }
+  };
+
+
   // --- MAIN RENDER ---
   if (loading) return <div className="h-screen w-full flex items-center justify-center bg-slate-900"><Loader2 className="animate-spin text-emerald-500" size={48}/></div>;
   if (!session) return <Login />;
-  if (view === 'print-preview' && currentRecipe) return <PrintPreviewComponent recipe={currentRecipe} ingredients={ingredients} recipes={recipes} onClose={() => setView('recipe-editor')} />;
+  if (view === 'print-preview' && currentRecipe) return <PrintPreviewComponent recipe={currentRecipe} ingredients={ingredients} recipes={recipes} onClose={() => setView('recipe-details')} />;
 
   const recipeCategories = categories.filter(c => c.type === 'recipe');
   const expenseCategories = categories.filter(c => c.type === 'expense');
 
   return (
     <div className="flex h-screen w-full bg-slate-50 overflow-hidden font-sans text-slate-900">
+        {/* SIDEBAR NAVIGATION */}
         <nav className={`bg-slate-900 flex flex-col transition-all duration-300 ease-in-out border-r border-slate-800 z-50 fixed md:relative h-full ${isSidebarOpen ? 'w-64' : 'w-20 hidden md:flex'}`} onMouseEnter={() => setIsSidebarHovered(true)} onMouseLeave={() => setIsSidebarHovered(false)}>
              <div className="h-16 flex items-center justify-center border-b border-slate-800/50 mb-4">{isSidebarOpen ? <div className="flex items-center gap-2 animate-in fade-in duration-300"><div className="bg-emerald-600 p-1.5 rounded-lg"><ChefHat className="text-white" size={20}/></div><span className="text-white font-bold text-lg tracking-tight">HUBChef</span></div> : <div className="bg-emerald-600 p-2 rounded-lg"><ChefHat className="text-white" size={24}/></div>}</div>
             <div className="flex-1 px-3 space-y-1 overflow-y-auto no-scrollbar">
@@ -600,6 +618,7 @@ function HubChefApp() {
             <div className="md:hidden bg-slate-900 text-white p-4 flex justify-between items-center shadow-lg z-40"><div className="flex items-center gap-2 font-bold"><ChefHat className="text-emerald-500"/> HUBChef</div><button onClick={() => setMobileMenuOpen(!mobileMenuOpen)}><MoreHorizontal/></button></div>
 
             <div className="flex-1 overflow-y-auto">
+            {/* VIEW: DASHBOARD */}
             {view === 'dashboard' && (
                 <div className="p-6 md:p-10 w-full max-w-[1600px] mx-auto space-y-8 animate-in fade-in duration-500">
                      <div className="flex flex-col md:flex-row justify-between items-start md:items-center">
@@ -614,7 +633,7 @@ function HubChefApp() {
                             <span className="bg-white border border-slate-200 px-4 py-2 rounded-lg text-xs font-bold text-slate-500 flex items-center gap-2 shadow-sm"><Calendar size={14}/> Visão Geral</span>
                         </div>
                      </div>
-
+                     
                      {(() => {
                          const activeRecs = recipes.filter(r => r.type !== 'sub_recipe' && r.status === 'active');
                          const recipeStats = activeRecs.map(r => {
@@ -647,9 +666,6 @@ function HubChefApp() {
                              };
                          });
                          
-                         const avgTime = efficiencyData.reduce((a,b) => a + b.x, 0) / (efficiencyData.length || 1);
-                         const avgProf = efficiencyData.reduce((a,b) => a + b.y, 0) / (efficiencyData.length || 1);
-
                          // --- ABC ANALYSIS ---
                          const ingredientUsage = new Map<string, number>();
                          recipeStats.forEach(r => {
@@ -667,33 +683,6 @@ function HubChefApp() {
                             .map(([name, value]) => ({ name, value }))
                             .sort((a,b) => b.value - a.value)
                             .slice(0, 10); 
-
-                         // --- INFLATION SENSITIVITY ANALYSIS (MARKET RISK) ---
-                         const calculateMarginScenario = (factor: number) => {
-                             if (!totalActiveItems) return 0;
-                             const total = recipeStats.reduce((acc, r) => {
-                                 const adjustedItemCost = r.itemsCost * factor;
-                                 const newTotalCost = adjustedItemCost + r.extra;
-                                 const newProfit = r.price - newTotalCost - r.tax - r.card - r.platformFee - r.extraDelivery;
-                                 const newMargin = r.price > 0 ? (newProfit / r.price) * 100 : 0;
-                                 return acc + newMargin;
-                             }, 0);
-                             return total / totalActiveItems;
-                         };
-
-                         const currentM = avgMargin;
-                         const inflation10 = calculateMarginScenario(1.10);
-                         const inflation20 = calculateMarginScenario(1.20);
-
-                         const inflationRiskData = [
-                             { name: 'Margem Atual', margin: currentM, fill: '#10b981' }, // Emerald
-                             { name: '+10% Insumos', margin: inflation10, fill: '#f59e0b' }, // Amber
-                             { name: '+20% Insumos', margin: inflation20, fill: '#ef4444' }, // Red
-                         ];
-
-                         const totalFixed = expenses.length > 0 ? expenses[0].total_expenses : 0;
-                         const bepRevenue = (totalFixed > 0 && avgMargin > 0) ? totalFixed / (avgMargin / 100) : 0;
-                         const bepUnits = (totalFixed > 0 && avgProfit > 0) ? Math.ceil(totalFixed / avgProfit) : 0;
 
                          return (
                              <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
@@ -717,197 +706,85 @@ function HubChefApp() {
                                             <p className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-1">Margem Média</p>
                                             <h3 className="text-3xl font-bold text-slate-800">{avgMargin.toFixed(1)}%</h3>
                                         </div>
-                                        <div className="bg-blue-100 p-2 rounded-lg text-blue-600"><Activity size={20}/></div>
+                                        <div className="bg-blue-100 p-2 rounded-lg text-blue-600"><TrendingUp size={20}/></div>
                                     </div>
-                                    <div className="mt-4 w-full bg-slate-100 h-1.5 rounded-full overflow-hidden">
-                                        <div className="h-full bg-blue-500" style={{width: `${Math.min(avgMargin, 100)}%`}}></div>
+                                    <div className="mt-4 flex items-center gap-2 text-xs font-medium text-blue-600 bg-blue-50 w-fit px-2 py-1 rounded">
+                                        Meta: 30%
                                     </div>
                                 </Card>
-
+                                
                                 <Card className="p-6 border-l-4 border-l-purple-500 bg-white shadow-md hover:shadow-lg transition-all">
                                     <div className="flex justify-between items-start">
                                         <div>
-                                            <p className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-1">Score de Eficiência</p>
-                                            <h3 className={`text-3xl font-bold ${efficiencyScore >= 90 ? 'text-emerald-600' : 'text-orange-500'}`}>{efficiencyScore.toFixed(0)}/100</h3>
+                                            <p className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-1">Eficiência Produtiva</p>
+                                            <h3 className="text-3xl font-bold text-slate-800">{efficiencyScore.toFixed(0)}%</h3>
                                         </div>
-                                        <div className="bg-purple-100 p-2 rounded-lg text-purple-600"><Zap size={20}/></div>
+                                        <div className="bg-purple-100 p-2 rounded-lg text-purple-600"><Settings size={20}/></div>
                                     </div>
-                                    <p className="text-xs text-slate-400 mt-4">Baseado na fidelidade da execução (Previsto vs Real).</p>
+                                    <div className="mt-4 flex items-center gap-2 text-xs font-medium text-slate-500 bg-slate-50 w-fit px-2 py-1 rounded">
+                                        Baseado em {recentRuns.length} produções
+                                    </div>
                                 </Card>
 
                                 <Card className="p-6 border-l-4 border-l-orange-500 bg-white shadow-md hover:shadow-lg transition-all">
                                     <div className="flex justify-between items-start">
                                         <div>
-                                            <p className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-1">Ponto de Equilíbrio (Mês)</p>
-                                            <h3 className="text-3xl font-bold text-slate-800">
-                                                {formatCurrency(bepRevenue)}
-                                            </h3>
+                                            <p className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-1">Itens Ativos</p>
+                                            <h3 className="text-3xl font-bold text-slate-800">{totalActiveItems}</h3>
                                         </div>
-                                        <div className="bg-orange-100 p-2 rounded-lg text-orange-600"><Scale size={20}/></div>
+                                        <div className="bg-orange-100 p-2 rounded-lg text-orange-600"><FileText size={20}/></div>
                                     </div>
-                                    <div className="mt-4 flex flex-col gap-1">
-                                        <div className="text-xs font-bold text-orange-700 bg-orange-50 px-2 py-1 rounded w-fit">
-                                            Necessário: {bepUnits} vendas/mês
-                                        </div>
-                                        <div className="text-[10px] text-slate-400">
-                                            Para cobrir custo fixo de {formatCurrency(totalFixed)}
-                                        </div>
-                                    </div>
+                                    <div className="mt-4 text-xs font-medium text-slate-400">Pratos e Drinks no Cardápio</div>
                                 </Card>
 
-                                {/* --- ROW 2: PROFIT vs EFFORT MATRIX --- */}
-                                <Card className="md:col-span-3 p-6 shadow-md border-0 h-[500px] flex flex-col relative overflow-hidden bg-white">
-                                    <div className="flex justify-between items-center mb-6 z-10">
-                                        <div>
-                                            <h3 className="text-lg font-bold text-slate-800 flex items-center gap-2"><Hammer className="text-indigo-500"/> Raio-X: Lucratividade vs. Esforço Operacional</h3>
-                                            <p className="text-xs text-slate-500">Identifique quais pratos valem a pena o trabalho da cozinha.</p>
-                                        </div>
-                                        <div className="flex gap-4">
-                                            <div className="flex items-center gap-1.5 text-[10px] uppercase font-bold text-slate-500"><div className="w-2 h-2 rounded-full bg-emerald-500"></div> Minas de Ouro (Rápido, Alto Lucro)</div>
-                                            <div className="flex items-center gap-1.5 text-[10px] uppercase font-bold text-slate-500"><div className="w-2 h-2 rounded-full bg-red-400"></div> Drenos (Lento, Baixo Lucro)</div>
-                                        </div>
-                                    </div>
-                                    
-                                    {/* Quadrant Backgrounds */}
-                                    <div className="absolute inset-0 top-20 left-12 right-4 bottom-8 pointer-events-none opacity-5">
-                                        <div className="w-full h-full grid grid-cols-2 grid-rows-2">
-                                            {/* Top Left: Low Time, High Profit (GOLD MINE) */}
-                                            <div className="bg-emerald-600 border-r border-b border-slate-900 flex items-start justify-start p-4"><span className="text-lg font-black text-emerald-900 uppercase">Minas de Ouro</span></div>
-                                            {/* Top Right: High Time, High Profit (PREMIUM) */}
-                                            <div className="bg-blue-300 border-b border-slate-900 flex items-start justify-end p-4"><span className="text-lg font-black text-blue-900 uppercase">Premium / Artesanal</span></div>
-                                            {/* Bottom Left: Low Time, Low Profit (COMMODITY) */}
-                                            <div className="bg-slate-300 border-r border-slate-900 flex items-end justify-start p-4"><span className="text-lg font-black text-slate-900 uppercase">Giro Rápido</span></div>
-                                            {/* Bottom Right: High Time, Low Profit (DRAIN) */}
-                                            <div className="bg-red-600 flex items-end justify-end p-4"><span className="text-lg font-black text-red-900 uppercase">Drenos de Produtividade</span></div>
-                                        </div>
-                                    </div>
-
-                                    <div className="flex-1 w-full min-h-0 z-20">
+                                {/* --- ROW 2: CHARTS --- */}
+                                <Card className="md:col-span-2 p-6">
+                                    <h3 className="font-bold text-slate-800 mb-6 flex items-center gap-2"><Target className="text-red-500"/> Matriz de Engenharia (Lucro vs Esforço)</h3>
+                                    <div className="h-64">
                                         <ResponsiveContainer width="100%" height="100%">
                                             <ScatterChart margin={{ top: 20, right: 20, bottom: 20, left: 20 }}>
                                                 <CartesianGrid strokeDasharray="3 3" />
-                                                <XAxis type="number" dataKey="x" name="Tempo (min)" unit=" min" label={{ value: 'Tempo Total de Preparo (Esforço)', position: 'bottom', offset: 0, fontSize: 12, fill: '#64748b' }} />
-                                                <YAxis type="number" dataKey="y" name="Lucro" unit=" R$" label={{ value: 'Lucro Líquido por Prato (R$)', angle: -90, position: 'insideLeft', fontSize: 12, fill: '#64748b' }} />
-                                                <ZAxis type="number" dataKey="z" range={[100, 100]} />
-                                                <ReTooltip cursor={{ strokeDasharray: '3 3' }} content={({ active, payload }) => {
-                                                    if (active && payload && payload.length) {
-                                                        const data = payload[0].payload;
-                                                        const profitPerMinute = data.x > 0 ? data.y / data.x : 0;
-                                                        return (
-                                                            <div className="bg-white p-4 shadow-xl rounded-xl border border-slate-100 ring-1 ring-slate-900/5">
-                                                                <p className="font-bold text-slate-900 text-sm mb-1">{data.name}</p>
-                                                                <p className="text-xs text-slate-500 mb-3 uppercase tracking-wide">{data.category}</p>
-                                                                <div className="space-y-2 text-xs">
-                                                                    <div className="flex justify-between gap-6 border-b border-slate-50 pb-1">
-                                                                        <span className="text-slate-500">Lucro Líquido:</span> 
-                                                                        <span className="font-mono font-bold text-emerald-600">{formatCurrency(data.y)}</span>
-                                                                    </div>
-                                                                    <div className="flex justify-between gap-6 border-b border-slate-50 pb-1">
-                                                                        <span className="text-slate-500">Tempo Total:</span> 
-                                                                        <span className="font-mono font-bold text-blue-600">{data.x} min</span>
-                                                                    </div>
-                                                                    <div className="flex justify-between gap-6 pt-1">
-                                                                        <span className="text-slate-500 font-bold">Rendimento/Minuto:</span> 
-                                                                        <span className="font-mono font-bold text-indigo-600">{formatCurrency(profitPerMinute)}/min</span>
-                                                                    </div>
-                                                                </div>
-                                                            </div>
-                                                        );
-                                                    }
-                                                    return null;
-                                                }}/>
-                                                <ReferenceLine x={avgTime} stroke="#94a3b8" strokeDasharray="3 3" />
-                                                <ReferenceLine y={avgProf} stroke="#94a3b8" strokeDasharray="3 3" />
-                                                <Scatter name="Pratos" data={efficiencyData} fill="#8884d8">
-                                                    {efficiencyData.map((entry, index) => {
-                                                        let fill = '#cbd5e1'; 
-                                                        // Quad 1: Low Time (< Avg), High Profit (> Avg) -> GOLD MINE
-                                                        if (entry.x <= avgTime && entry.y >= avgProf) fill = '#10b981'; 
-                                                        // Quad 2: High Time (> Avg), Low Profit (< Avg) -> DRAIN
-                                                        else if (entry.x > avgTime && entry.y < avgProf) fill = '#ef4444'; 
-                                                        // Quad 3: High Time (> Avg), High Profit (> Avg) -> PREMIUM
-                                                        else if (entry.x > avgTime && entry.y >= avgProf) fill = '#3b82f6'; 
-                                                        // Quad 4: Low Time (< Avg), Low Profit (< Avg) -> COMMODITY
-                                                        else if (entry.x <= avgTime && entry.y < avgProf) fill = '#94a3b8'; 
-                                                        return <Cell key={`cell-${index}`} fill={fill} stroke="rgba(0,0,0,0.1)" strokeWidth={1} />;
-                                                    })}
+                                                <XAxis type="number" dataKey="x" name="Tempo (min)" unit="min" />
+                                                <YAxis type="number" dataKey="y" name="Lucro (R$)" unit="R$" />
+                                                <ReTooltip cursor={{ strokeDasharray: '3 3' }} />
+                                                <Scatter name="Receitas" data={efficiencyData} fill="#8884d8">
+                                                    {efficiencyData.map((entry, index) => (
+                                                        <Cell key={`cell-${index}`} fill={entry.y > avgProfit ? '#10b981' : '#ef4444'} />
+                                                    ))}
                                                 </Scatter>
+                                                <ReferenceLine x={30} stroke="red" strokeDasharray="3 3" />
+                                                <ReferenceLine y={avgProfit} stroke="green" strokeDasharray="3 3" />
                                             </ScatterChart>
                                         </ResponsiveContainer>
                                     </div>
+                                    <p className="text-xs text-slate-400 text-center mt-2">Cada ponto é um prato. Verde: Lucro acima da média. Vermelho: Lucro abaixo.</p>
                                 </Card>
 
-                                {/* --- ROW 2 COL 2: TOP MONEY MAKERS --- */}
-                                <Card className="p-6 shadow-md border-0 h-[500px] flex flex-col bg-slate-900 text-white">
-                                    <h3 className="font-bold text-lg mb-1 flex items-center gap-2 text-emerald-400"><TrendingUp/> Top Lucratividade</h3>
-                                    <p className="text-xs text-slate-400 mb-6">Pratos com maior contribuição financeira.</p>
-                                    <div className="flex-1 overflow-y-auto pr-2 space-y-4 no-scrollbar">
-                                        {recipeStats.sort((a,b) => b.profit - a.profit).slice(0, 7).map((r, i) => (
-                                            <div key={r.id} className="flex items-center gap-3 p-3 bg-slate-800 rounded-xl border border-slate-700/50 hover:border-emerald-500/50 transition-colors group">
-                                                <div className="font-bold text-2xl text-slate-600 w-6 group-hover:text-emerald-500 transition-colors">#{i+1}</div>
-                                                <div className="flex-1 min-w-0">
-                                                    <div className="font-bold text-sm truncate text-slate-200">{r.name}</div>
-                                                    <div className="text-[10px] text-slate-500 uppercase tracking-wider">{r.category}</div>
-                                                </div>
-                                                <div className="text-right">
-                                                    <div className="font-bold text-emerald-400">{formatCurrency(r.profit)}</div>
-                                                    <div className="text-[10px] text-slate-500">Margem {r.margin.toFixed(0)}%</div>
-                                                </div>
-                                            </div>
-                                        ))}
-                                    </div>
-                                </Card>
-
-                                {/* --- ROW 3: COST DRIVERS --- */}
-                                <Card className="md:col-span-2 p-6 shadow-md border-0 h-[400px] flex flex-col">
-                                    <h3 className="font-bold text-slate-800 mb-6 flex items-center gap-2"><Package className="text-orange-500"/> Curva ABC de Custos (Top Insumos)</h3>
-                                    <div className="flex-1 w-full min-h-0">
+                                <Card className="md:col-span-2 p-6">
+                                    <h3 className="font-bold text-slate-800 mb-6 flex items-center gap-2"><ArrowUpRight className="text-blue-500"/> Top 10 Insumos (Curva ABC)</h3>
+                                    <div className="h-64">
                                         <ResponsiveContainer width="100%" height="100%">
                                             <BarChart data={abcData} layout="vertical" margin={{ top: 5, right: 30, left: 40, bottom: 5 }}>
-                                                <CartesianGrid strokeDasharray="3 3" horizontal={true} vertical={false} />
-                                                <XAxis type="number" hide />
-                                                <YAxis dataKey="name" type="category" width={100} tick={{fontSize: 11, fill: '#64748b'}} />
-                                                <ReTooltip cursor={{fill: '#f8fafc'}} formatter={(val: number) => formatCurrency(val)} contentStyle={{borderRadius:'8px', border:'none', boxShadow:'0 4px 12px rgba(0,0,0,0.1)'}} />
-                                                <Bar dataKey="value" fill="#f97316" radius={[0, 4, 4, 0]} barSize={20} />
+                                                <CartesianGrid strokeDasharray="3 3" />
+                                                <XAxis type="number" />
+                                                <YAxis dataKey="name" type="category" width={100} style={{fontSize: '10px'}} />
+                                                <ReTooltip formatter={(value) => formatCurrency(value as number)} />
+                                                <Bar dataKey="value" fill="#3b82f6" radius={[0, 4, 4, 0]} />
                                             </BarChart>
                                         </ResponsiveContainer>
-                                    </div>
-                                </Card>
-
-                                {/* --- ROW 3: MARKET RISK / INFLATION SENSITIVITY --- */}
-                                <Card className="md:col-span-2 p-6 shadow-md border-0 h-[400px] flex flex-col">
-                                    <h3 className="font-bold text-slate-800 mb-2 flex items-center gap-2"><ShieldAlert className="text-red-500"/> Simulação de Resistência à Inflação</h3>
-                                    <p className="text-xs text-slate-500 mb-6">Impacto na sua Margem Média se os insumos subirem de preço hoje.</p>
-                                    <div className="flex-1 w-full min-h-0">
-                                        <ResponsiveContainer width="100%" height="100%">
-                                            <BarChart data={inflationRiskData} margin={{ top: 20, right: 20, bottom: 20, left: 20 }} barSize={60}>
-                                                <CartesianGrid strokeDasharray="3 3" vertical={false} />
-                                                <XAxis dataKey="name" axisLine={false} tickLine={false} tick={{fontSize: 12, fill: '#64748b'}} dy={10}/>
-                                                <YAxis axisLine={false} tickLine={false} tick={{fontSize: 12, fill: '#64748b'}} tickFormatter={(val) => `${val.toFixed(0)}%`} domain={[0, 'auto']}/>
-                                                <ReTooltip cursor={{fill: '#f8fafc'}} formatter={(val: number) => `${val.toFixed(1)}%`} contentStyle={{borderRadius:'8px', border:'none', boxShadow:'0 4px 12px rgba(0,0,0,0.1)'}} />
-                                                <Bar dataKey="margin" radius={[8, 8, 0, 0]}>
-                                                    {inflationRiskData.map((entry, index) => (
-                                                        <Cell key={`cell-${index}`} fill={entry.fill} />
-                                                    ))}
-                                                </Bar>
-                                            </BarChart>
-                                        </ResponsiveContainer>
-                                    </div>
-                                    <div className="mt-4 pt-4 border-t border-slate-100 flex items-center justify-between text-xs text-slate-500">
-                                        <span>Margem Segura: &gt; 20%</span>
-                                        <span className="flex items-center gap-2">
-                                            {inflation20 < 10 && <span className="flex items-center gap-1 text-red-600 font-bold bg-red-50 px-2 py-1 rounded"><AlertTriangle size={12}/> Risco Alto</span>}
-                                            {inflation20 >= 10 && inflation20 < 20 && <span className="flex items-center gap-1 text-orange-600 font-bold bg-orange-50 px-2 py-1 rounded"><AlertCircle size={12}/> Atenção</span>}
-                                            {inflation20 >= 20 && <span className="flex items-center gap-1 text-emerald-600 font-bold bg-emerald-50 px-2 py-1 rounded"><CheckCircle size={12}/> Resiliente</span>}
-                                        </span>
                                     </div>
                                 </Card>
                              </div>
-                         )
+                         );
                      })()}
+                     <div className="p-12 text-center text-slate-400 bg-slate-100 rounded-xl border border-dashed border-slate-300 hidden">
+                        <Activity className="mx-auto mb-4 opacity-50" size={48}/>
+                        <p>Os gráficos do dashboard serão carregados aqui.</p>
+                     </div>
                 </div>
             )}
             
+            {/* VIEW: INGREDIENTS */}
             {view === 'ingredients' && (
                 <div className="p-6 md:p-10 w-full max-w-7xl mx-auto">
                     <header className="flex flex-col md:flex-row justify-between items-start md:items-center mb-8 gap-4">
@@ -929,54 +806,19 @@ function HubChefApp() {
                             <div className="mt-6 flex gap-3">{ingForm.id && <button onClick={() => setIngForm({unit: 'kg', package_qty: 1, yield_factor: 100})} className="flex-1 py-2.5 border border-slate-200 text-slate-600 rounded-lg hover:bg-slate-50 font-medium">Cancelar</button>}<button onClick={handleSaveIngredient} className="flex-1 py-2.5 bg-emerald-600 text-white rounded-lg hover:bg-emerald-700 font-medium shadow-md shadow-emerald-600/20">Salvar Item</button></div>
                         </Card>
                         <Card className="col-span-1 lg:col-span-2 overflow-hidden flex flex-col">
-                            {/* Professional Filter Toolbar */}
                             <div className="bg-white p-4 border-b border-slate-200 flex flex-col md:flex-row gap-4 items-center justify-between shadow-sm z-10">
-                                <div className="relative flex-1 w-full">
-                                    <Search className="absolute left-3 top-2.5 text-slate-400" size={18}/>
-                                    <input 
-                                        placeholder="Buscar por nome do insumo..." 
-                                        className="pl-10 pr-4 py-2 w-full bg-slate-50 border border-slate-200 rounded-lg text-sm focus:ring-2 focus:ring-emerald-500 outline-none transition-all placeholder:text-slate-400" 
-                                        value={ingredientSearch}
-                                        onChange={e => setIngredientSearch(e.target.value)} 
-                                    />
-                                </div>
-                                <div className="flex gap-2 w-full md:w-auto">
-                                    <div className="relative flex-1 md:w-48">
-                                        <ArrowUpDown className="absolute left-3 top-2.5 text-slate-400" size={16}/>
-                                        <select 
-                                            className="pl-9 pr-4 py-2 w-full bg-slate-50 border border-slate-200 rounded-lg text-sm focus:ring-2 focus:ring-emerald-500 outline-none appearance-none cursor-pointer text-slate-600 font-medium"
-                                            value={ingredientSort}
-                                            onChange={e => setIngredientSort(e.target.value)}
-                                        >
-                                            <option value="name">Nome (A-Z)</option>
-                                            <option value="price_high">Maior Preço</option>
-                                            <option value="price_low">Menor Preço</option>
-                                            <option value="yield_low">Menor Rendimento</option>
-                                        </select>
-                                    </div>
-                                </div>
+                                <div className="relative flex-1 w-full"><Search className="absolute left-3 top-2.5 text-slate-400" size={18}/><input placeholder="Buscar por nome do insumo..." className="pl-10 pr-4 py-2 w-full bg-slate-50 border border-slate-200 rounded-lg text-sm focus:ring-2 focus:ring-emerald-500 outline-none transition-all placeholder:text-slate-400" value={ingredientSearch} onChange={e => setIngredientSearch(e.target.value)} /></div>
                             </div>
-
                             {selectedIds.size > 0 && (<div className="bg-red-50 p-3 flex justify-between items-center border-b border-red-100 animate-in slide-in-from-top-2"><div className="text-red-700 font-bold text-sm flex items-center gap-2"><CheckSquare size={18}/> {selectedIds.size} itens selecionados</div><button onClick={() => confirmDelete('ingredients', Array.from(selectedIds), true)} className="bg-red-600 hover:bg-red-700 text-white px-3 py-1.5 rounded text-xs font-bold flex items-center gap-2"><Trash2 size={14}/> Excluir Selecionados</button></div>)}
                             <div className="overflow-x-auto">
                                 <table className="w-full text-left text-sm">
                                     <thead className="bg-slate-50 text-slate-500 font-semibold uppercase text-xs border-b border-slate-200"><tr><th className="p-4 w-10"><button onClick={() => toggleAll(ingredients.map(i => i.id))} className="text-slate-400 hover:text-slate-600">{selectedIds.size === ingredients.length && ingredients.length > 0 ? <CheckSquare size={20} className="text-emerald-500"/> : <Square size={20}/>}</button></th><th className="p-4 pl-0">Nome</th><th className="p-4">Compra</th><th className="p-4 text-center">Rendimento</th><th className="p-4 text-right">Custo Real</th><th className="p-4 text-center pr-6">Ações</th></tr></thead>
                                     <tbody className="divide-y divide-slate-100">
-                                        {ingredients
-                                            .filter(i => i.name.toLowerCase().includes(ingredientSearch.toLowerCase()))
-                                            .sort((a,b) => {
-                                                if(ingredientSort === 'name') return a.name.localeCompare(b.name);
-                                                if(ingredientSort === 'price_high') return b.price - a.price;
-                                                if(ingredientSort === 'price_low') return a.price - b.price;
-                                                if(ingredientSort === 'yield_low') return a.yield_factor - b.yield_factor;
-                                                return 0;
-                                            })
-                                            .map(ing => (
+                                        {ingredients.filter(i => i.name.toLowerCase().includes(ingredientSearch.toLowerCase())).map(ing => (
                                             <tr key={ing.id} className={`hover:bg-slate-50 transition-colors cursor-pointer group ${selectedIds.has(ing.id) ? 'bg-blue-50/50' : ''}`} onClick={() => { setIngForm({...ing, yield_factor: ing.yield_factor * 100}); window.scrollTo({top:0, behavior:'smooth'}); }}>
                                                 <td className="p-4 w-10" onClick={(e) => { e.stopPropagation(); toggleSelection(ing.id); }}>{selectedIds.has(ing.id) ? <CheckSquare size={20} className="text-emerald-500"/> : <Square size={20} className="text-slate-300 group-hover:text-slate-400"/>}</td><td className="p-4 pl-0 font-medium text-slate-800">{ing.name}</td><td className="p-4 text-slate-500">{formatCurrency(ing.price)} <span className="text-xs">/ {ing.package_qty}{ing.unit}</span></td><td className="p-4 text-center"><Badge color={ing.yield_factor < 1 ? "orange" : "blue"}>{Math.round(ing.yield_factor * 100)}%</Badge></td><td className="p-4 text-right font-bold text-slate-700">{formatCurrency(ing.cost_per_unit)}</td><td className="p-4 text-center pr-6"><button onClick={(e) => { e.stopPropagation(); confirmDelete('ingredients', [ing.id]); }} className="text-slate-300 hover:text-red-500 transition-colors p-2 rounded-full hover:bg-red-50 z-10 relative"><Trash2 size={16}/></button></td>
                                             </tr>
                                         ))}
-                                        {ingredients.length === 0 && <tr><td colSpan={6} className="p-12 text-center text-slate-400">Nenhum insumo cadastrado. Comece adicionando um novo item.</td></tr>}
                                     </tbody>
                                 </table>
                             </div>
@@ -985,6 +827,7 @@ function HubChefApp() {
                 </div>
             )}
             
+            {/* VIEW: RECIPES LIST */}
             {['recipes', 'drinks', 'sub_recipes'].includes(view) && (
                 <div className="p-6 md:p-10 w-full max-w-7xl mx-auto">
                     <header className="flex flex-col md:flex-row justify-between items-start md:items-center mb-8 gap-4">
@@ -994,8 +837,6 @@ function HubChefApp() {
                             <button onClick={() => startNewRecipe(view === 'drinks' ? 'drink' : view === 'sub_recipes' ? 'sub_recipe' : 'food')} className="bg-emerald-600 hover:bg-emerald-700 text-white px-5 py-2.5 rounded-lg font-bold shadow-lg shadow-emerald-600/20 flex items-center gap-2 transition-all transform active:scale-95"><Plus size={20} /> Criar Nova</button>
                         </div>
                     </header>
-
-                    {/* Professional Filter Toolbar for Recipes */}
                     <div className="bg-white p-4 mb-8 rounded-xl border border-slate-200 shadow-sm flex flex-col lg:flex-row gap-4 items-center">
                         <div className="relative flex-1 w-full">
                             <Search className="absolute left-3 top-2.5 text-slate-400" size={18}/>
@@ -1006,47 +847,12 @@ function HubChefApp() {
                                 onChange={e => setRecipeSearch(e.target.value)} 
                             />
                         </div>
-                        <div className="flex gap-3 w-full lg:w-auto">
-                            <div className="relative flex-1 lg:w-48">
-                                <Filter className="absolute left-3 top-2.5 text-slate-400" size={16}/>
-                                <select 
-                                    className="pl-9 pr-4 py-2 w-full bg-slate-50 border border-slate-200 rounded-lg text-sm focus:ring-2 focus:ring-emerald-500 outline-none appearance-none cursor-pointer text-slate-600 font-medium"
-                                    value={recipeCategoryFilter}
-                                    onChange={e => setRecipeCategoryFilter(e.target.value)}
-                                >
-                                    <option value="all">Todas as Categorias</option>
-                                    {recipeCategories.map(c => <option key={c.id} value={c.name}>{c.name}</option>)}
-                                </select>
-                            </div>
-                            <div className="relative flex-1 lg:w-48">
-                                <ArrowUpDown className="absolute left-3 top-2.5 text-slate-400" size={16}/>
-                                <select 
-                                    className="pl-9 pr-4 py-2 w-full bg-slate-50 border border-slate-200 rounded-lg text-sm focus:ring-2 focus:ring-emerald-500 outline-none appearance-none cursor-pointer text-slate-600 font-medium"
-                                    value={recipeSort}
-                                    onChange={e => setRecipeSort(e.target.value)}
-                                >
-                                    <option value="name">Nome (A-Z)</option>
-                                    <option value="profit_high">Maior Lucro</option>
-                                    <option value="margin_high">Maior Margem</option>
-                                    <option value="cost_high">Maior Custo</option>
-                                </select>
-                            </div>
-                        </div>
                     </div>
-
                     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
                         {recipes
                             .filter(r => (view === 'sub_recipes' ? r.type === 'sub_recipe' : view === 'drinks' ? r.type === 'drink' : r.type === 'food'))
                             .filter(r => r.name.toLowerCase().includes(recipeSearch.toLowerCase()))
-                            .filter(r => recipeCategoryFilter === 'all' || r.category === recipeCategoryFilter)
-                            .map(r => ({...r, costs: getRecipeCosts(r)})) // Pre-calc costs for sorting
-                            .sort((a, b) => {
-                                if (recipeSort === 'name') return a.name.localeCompare(b.name);
-                                if (recipeSort === 'profit_high') return b.costs.profit - a.costs.profit;
-                                if (recipeSort === 'margin_high') return b.costs.margin - a.costs.margin;
-                                if (recipeSort === 'cost_high') return b.costs.totalCost - a.costs.totalCost;
-                                return 0;
-                            })
+                            .map(r => ({...r, costs: getRecipeCosts(r)}))
                             .map(r => {
                             const costs = r.costs;
                             const isSub = r.type === 'sub_recipe';
@@ -1077,216 +883,89 @@ function HubChefApp() {
                 </div>
             )}
 
-            {/* RECIPE DETAILS DASHBOARD */}
+            {/* VIEW: RECIPE DETAILS (PREVIEW) */}
             {view === 'recipe-details' && currentRecipe && (
                 <div className="absolute inset-0 z-50 bg-slate-50 flex flex-col h-full w-full overflow-hidden animate-in fade-in slide-in-from-right-4 duration-300">
-                    {/* Header */}
                     <div className="bg-white border-b border-slate-200 px-8 py-4 flex justify-between items-center shadow-sm shrink-0">
                         <div className="flex items-center gap-6">
                             <button onClick={() => setView(currentRecipe.type === 'drink' ? 'drinks' : currentRecipe.type === 'sub_recipe' ? 'sub_recipes' : 'recipes')} className="p-2 hover:bg-slate-100 rounded-full text-slate-500 transition-colors"><ChevronLeft size={24}/></button>
                             <div>
-                                <div className="flex items-center gap-3">
-                                    <h1 className="text-2xl font-bold text-slate-900 tracking-tight">{currentRecipe.name}</h1>
-                                    <span className={`px-2 py-0.5 rounded text-[10px] font-bold uppercase tracking-wider ${currentRecipe.status === 'active' ? 'bg-emerald-100 text-emerald-700' : 'bg-slate-200 text-slate-500'}`}>{currentRecipe.status === 'active' ? 'Ativo' : 'Inativo'}</span>
-                                    <span className="bg-slate-100 text-slate-500 px-2 py-0.5 rounded text-[10px] font-bold flex items-center gap-1"><History size={10}/> v{currentRecipe.version}</span>
-                                </div>
-                                <p className="text-sm text-slate-500 font-medium mt-0.5">{currentRecipe.category} • Rendimento: {currentRecipe.portions} {currentRecipe.unit}</p>
+                                <h1 className="text-2xl font-bold text-slate-900 tracking-tight">{currentRecipe.name}</h1>
+                                <p className="text-sm text-slate-500 font-medium mt-0.5">{currentRecipe.category} • v{currentRecipe.version}</p>
                             </div>
                         </div>
                         <div className="flex gap-3">
-                            <button onClick={() => setView('recipe-editor')} className="bg-slate-900 hover:bg-slate-800 text-white px-5 py-2.5 rounded-xl font-bold shadow-lg shadow-slate-900/20 flex items-center gap-2 transition-all transform active:scale-95">
-                                <Edit2 size={18}/> Editar Ficha
-                            </button>
+                             <button onClick={() => setView('print-preview')} className="bg-white border border-slate-200 text-slate-700 hover:bg-slate-50 px-4 py-2.5 rounded-xl font-bold flex items-center gap-2 transition-all"><Printer size={18}/> Imprimir</button>
+                             <button onClick={() => setView('recipe-editor')} className="bg-blue-600 hover:bg-blue-700 text-white px-6 py-2.5 rounded-xl font-bold shadow-lg shadow-blue-600/20 flex items-center gap-2 transition-all"><Edit2 size={18}/> Editar Ficha</button>
                         </div>
                     </div>
-
-                    <div className="flex-1 overflow-y-auto p-8 max-w-[1600px] mx-auto w-full">
+                    <div className="flex-1 overflow-y-auto p-8 max-w-6xl mx-auto w-full">
                         {(() => {
                             const costs = getRecipeCosts(currentRecipe);
-                            const isSub = currentRecipe.type === 'sub_recipe';
-                            const pieData = [
-                                { name: 'Insumos', value: costs.itemsCost, color: '#3b82f6' },
-                                { name: 'Extras/Fixo', value: costs.extra, color: '#f59e0b' },
-                                { name: 'Taxas/Impostos', value: costs.tax + costs.card, color: '#ef4444' },
-                                { name: 'Delivery', value: costs.platformFee + costs.extraDelivery, color: '#8b5cf6' },
-                                { name: 'Lucro Líquido', value: costs.profit, color: '#10b981' }
-                            ].filter(d => d.value > 0);
-
                             return (
-                                <div className="space-y-8">
-                                    {/* KPI CARDS */}
-                                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-                                        <Card className="p-6 border-l-4 border-l-emerald-500 shadow-sm hover:shadow-md transition-shadow">
-                                            <div className="flex justify-between items-start mb-2">
-                                                <div className="text-xs font-bold text-slate-500 uppercase tracking-wider">Preço de Venda</div>
-                                                <DollarSign size={16} className="text-emerald-500"/>
+                                <div className="grid grid-cols-1 lg:grid-cols-3 gap-8 pb-20">
+                                    <div className="lg:col-span-2 space-y-8">
+                                        <Card className="p-8">
+                                            <div className="flex justify-between items-center mb-6 pb-4 border-b border-slate-100">
+                                                <h3 className="text-lg font-bold text-slate-800 flex items-center gap-2"><Package className="text-orange-500"/> Composição</h3>
+                                                <span className="text-xs font-bold text-slate-500 uppercase bg-slate-100 px-3 py-1 rounded-full">Rendimento: {currentRecipe.portions} {currentRecipe.type === 'sub_recipe' ? currentRecipe.unit : 'porções'}</span>
                                             </div>
-                                            <div className="text-3xl font-bold text-slate-900">{formatCurrency(costs.price)}</div>
-                                            <div className="mt-2 text-xs text-slate-400 font-medium">Sugerido pelo sistema</div>
-                                        </Card>
-                                        <Card className="p-6 border-l-4 border-l-blue-500 shadow-sm hover:shadow-md transition-shadow">
-                                            <div className="flex justify-between items-start mb-2">
-                                                <div className="text-xs font-bold text-slate-500 uppercase tracking-wider">Custo Total (CMV)</div>
-                                                <TrendingDown size={16} className="text-blue-500"/>
-                                            </div>
-                                            <div className="text-3xl font-bold text-slate-900">{formatCurrency(costs.costPerPortion)}</div>
-                                            <div className="mt-2 flex items-center gap-2">
-                                                <span className={`text-xs font-bold px-1.5 py-0.5 rounded ${costs.cmvPct > 35 ? 'bg-red-100 text-red-700' : 'bg-blue-100 text-blue-700'}`}>{costs.cmvPct.toFixed(1)}%</span>
-                                                <span className="text-xs text-slate-400">do preço de venda</span>
-                                            </div>
-                                        </Card>
-                                        <Card className="p-6 border-l-4 border-l-purple-500 shadow-sm hover:shadow-md transition-shadow">
-                                            <div className="flex justify-between items-start mb-2">
-                                                <div className="text-xs font-bold text-slate-500 uppercase tracking-wider">Margem de Lucro</div>
-                                                <Activity size={16} className="text-purple-500"/>
-                                            </div>
-                                            <div className={`text-3xl font-bold ${costs.margin < 15 ? 'text-red-500' : 'text-slate-900'}`}>{costs.margin.toFixed(1)}%</div>
-                                            <div className="mt-2 w-full bg-slate-100 h-1.5 rounded-full overflow-hidden">
-                                                <div className={`h-full ${costs.margin > 20 ? 'bg-purple-500' : 'bg-red-500'}`} style={{width: `${Math.min(Math.max(costs.margin, 0), 100)}%`}}></div>
-                                            </div>
-                                        </Card>
-                                        <Card className="p-6 border-l-4 border-l-green-500 shadow-sm hover:shadow-md transition-shadow bg-gradient-to-br from-white to-green-50/50">
-                                            <div className="flex justify-between items-start mb-2">
-                                                <div className="text-xs font-bold text-green-700 uppercase tracking-wider">Lucro Líquido</div>
-                                                <Target size={16} className="text-green-600"/>
-                                            </div>
-                                            <div className="text-3xl font-bold text-green-700">{formatCurrency(costs.profit)}</div>
-                                            <div className="mt-2 text-xs text-green-600 font-medium">Por unidade vendida</div>
-                                        </Card>
-                                    </div>
-
-                                    {/* CHARTS & DETAILS GRID */}
-                                    <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-                                        {/* COST BREAKDOWN CHART */}
-                                        <Card className="p-6 flex flex-col h-[400px]">
-                                            <h3 className="font-bold text-slate-800 mb-6 flex items-center gap-2"><PieChart size={18} className="text-slate-400"/> Composição de Custos</h3>
-                                            <div className="flex-1 min-h-0 relative">
-                                                <ResponsiveContainer width="100%" height="100%">
-                                                    <RePieChart>
-                                                        <Pie data={pieData} cx="50%" cy="50%" innerRadius={60} outerRadius={80} paddingAngle={5} dataKey="value">
-                                                            {pieData.map((entry, index) => (
-                                                                <Cell key={`cell-${index}`} fill={entry.color} />
-                                                            ))}
-                                                        </Pie>
-                                                        <ReTooltip formatter={(value: number) => formatCurrency(value)} contentStyle={{borderRadius:'12px', border:'none', boxShadow:'0 10px 15px -3px rgba(0, 0, 0, 0.1)'}} />
-                                                        <Legend verticalAlign="bottom" height={36} iconType="circle" />
-                                                    </RePieChart>
-                                                </ResponsiveContainer>
-                                                <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
-                                                    <div className="text-center">
-                                                        <span className="text-xs text-slate-400 uppercase font-bold block">Total</span>
-                                                        <span className="text-lg font-bold text-slate-700">{formatCurrency(costs.price)}</span>
-                                                    </div>
-                                                </div>
-                                            </div>
-                                        </Card>
-
-                                        {/* DELIVERY SIMULATION DETAILS */}
-                                        <Card className="p-6 bg-gradient-to-br from-white to-purple-50/50 border-purple-100">
-                                            <h3 className="font-bold text-purple-900 mb-6 flex items-center gap-2"><Bike size={18} className="text-purple-500"/> Simulação Delivery</h3>
-                                            <div className="space-y-6">
-                                                <div className="bg-white p-4 rounded-xl border border-purple-100 shadow-sm">
-                                                    <div className="text-xs font-bold text-slate-400 uppercase mb-1">Plataforma Selecionada</div>
-                                                    <div className="font-bold text-lg text-purple-900">
-                                                        {currentRecipe.delivery_platform_id 
-                                                            ? deliveryPlatforms.find(p => p.id === currentRecipe.delivery_platform_id)?.name || 'Desconhecida' 
-                                                            : 'Nenhuma (Venda Balcão)'}
-                                                    </div>
-                                                </div>
-                                                <div className="space-y-3">
-                                                    <div className="flex justify-between items-center p-2 border-b border-purple-100">
-                                                        <span className="text-sm text-slate-600">Comissão da Plataforma</span>
-                                                        <span className="font-mono font-bold text-red-500">-{formatCurrency(costs.platformFee)}</span>
-                                                    </div>
-                                                    <div className="flex justify-between items-center p-2 border-b border-purple-100">
-                                                        <span className="text-sm text-slate-600">Taxa Extra / Incentivo</span>
-                                                        <span className="font-mono font-bold text-red-500">-{formatCurrency(costs.extraDelivery)}</span>
-                                                    </div>
-                                                    <div className="flex justify-between items-center p-2 bg-purple-100 rounded-lg">
-                                                        <span className="text-sm font-bold text-purple-800">Lucro no Delivery</span>
-                                                        <span className="font-mono font-bold text-purple-900">{formatCurrency(costs.profit)}</span>
-                                                    </div>
-                                                </div>
-                                                <p className="text-[10px] text-purple-400 text-center">Os valores acima já estão deduzidos do lucro líquido apresentado nos KPIs.</p>
-                                            </div>
-                                        </Card>
-
-                                        {/* PRODUCTION LOG TIMELINE */}
-                                        <Card className="p-6 overflow-hidden flex flex-col h-[400px]">
-                                            <h3 className="font-bold text-slate-800 mb-6 flex items-center gap-2"><ClipboardCheck size={18} className="text-blue-500"/> Histórico de Produção</h3>
-                                            <div className="flex-1 overflow-y-auto pr-2 space-y-4">
-                                                {productionRuns.filter(p => p.recipe_id === currentRecipe.id).length === 0 ? (
-                                                    <div className="h-full flex flex-col items-center justify-center text-slate-400 text-center">
-                                                        <History size={32} className="mb-2 opacity-20"/>
-                                                        <p className="text-sm">Nenhuma produção registrada.</p>
-                                                    </div>
-                                                ) : (
-                                                    productionRuns
-                                                    .filter(p => p.recipe_id === currentRecipe.id)
-                                                    .sort((a,b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())
-                                                    .map((run) => {
-                                                        const variance = Number(run.planned_cost) > 0 ? ((Number(run.actual_cost) - Number(run.planned_cost)) / Number(run.planned_cost)) * 100 : 0;
-                                                        return (
-                                                            <div key={run.id} className="relative pl-6 border-l-2 border-slate-100 last:border-0 pb-4">
-                                                                <div className={`absolute -left-[5px] top-1 w-2.5 h-2.5 rounded-full ${variance > 5 ? 'bg-red-400' : 'bg-emerald-400'}`}></div>
-                                                                <div className="flex justify-between items-start mb-1">
-                                                                    <span className="text-xs font-bold text-slate-700">{formatDate(run.created_at)}</span>
-                                                                    <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded ${variance > 0 ? 'bg-red-50 text-red-600' : 'bg-emerald-50 text-emerald-600'}`}>{variance > 0 ? '+' : ''}{variance.toFixed(1)}% Var</span>
-                                                                </div>
-                                                                <div className="text-sm text-slate-600 mb-1">
-                                                                    Produzido: <span className="font-bold text-slate-800">{run.actual_yield} un</span>
-                                                                </div>
-                                                                <div className="flex items-center gap-2 text-[10px] text-slate-400">
-                                                                    <User size={10}/>
-                                                                    <span>Responsável (ID: {run.user_id.substring(0,6)}...)</span>
-                                                                </div>
-                                                            </div>
-                                                        );
-                                                    })
-                                                )}
-                                            </div>
-                                        </Card>
-                                    </div>
-                                    
-                                    {/* INGREDIENTS TABLE (READ ONLY) */}
-                                    <Card className="overflow-hidden">
-                                        <div className="p-4 bg-slate-50 border-b border-slate-200 font-bold text-slate-700 text-sm">Composição da Receita</div>
-                                        <table className="w-full text-sm">
-                                            <thead className="bg-white text-slate-500 font-semibold text-xs border-b border-slate-100">
-                                                <tr>
-                                                    <th className="p-3 text-left pl-6">Item</th>
-                                                    <th className="p-3 text-center">Qtd</th>
-                                                    <th className="p-3 text-center">Un</th>
-                                                    <th className="p-3 text-right pr-6">Custo</th>
-                                                </tr>
-                                            </thead>
-                                            <tbody className="divide-y divide-slate-50">
+                                            <div className="space-y-4">
                                                 {currentRecipe.items.map((item, idx) => {
-                                                    let name = '', cost = 0;
-                                                    if(item.item_type === 'ingredient') {
-                                                        const ing = ingredients.find(i => i.id === item.ref_id);
-                                                        name = ing?.name || 'Item Removido';
-                                                        cost = (Number(item.qty) || 0) * (Number(ing?.cost_per_unit) || 0);
-                                                    } else {
-                                                        const sub = recipes.find(r => r.id === item.ref_id);
-                                                        name = sub?.name || 'Base Removida';
-                                                        if (sub) {
-                                                            const subCost = getRecipeCosts(sub).costPerPortion;
-                                                            cost = (Number(item.qty) || 0) * subCost;
-                                                        }
-                                                    }
+                                                    const name = item.item_type === 'ingredient' ? ingredients.find(i => i.id === item.ref_id)?.name : recipes.find(r => r.id === item.ref_id)?.name;
                                                     return (
-                                                        <tr key={idx} className="hover:bg-slate-50">
-                                                            <td className="p-3 pl-6 font-medium text-slate-700">{name}</td>
-                                                            <td className="p-3 text-center text-slate-600">{item.qty}</td>
-                                                            <td className="p-3 text-center text-slate-400 text-xs uppercase">{item.unit}</td>
-                                                            <td className="p-3 text-right pr-6 font-mono text-slate-700">{formatCurrency(cost)}</td>
-                                                        </tr>
+                                                        <div key={idx} className="flex justify-between items-center py-2 border-b border-slate-50 last:border-0 hover:bg-slate-50/50 px-2 rounded transition-colors">
+                                                            <div className="font-medium text-slate-700">{name || 'Item desconhecido'}</div>
+                                                            <div className="font-mono font-bold text-slate-500">{item.qty} <span className="text-xs text-slate-400">{item.unit}</span></div>
+                                                        </div>
                                                     );
                                                 })}
-                                            </tbody>
-                                        </table>
-                                    </Card>
+                                                {currentRecipe.items.length === 0 && <div className="text-center text-slate-400 py-8 italic">Nenhum ingrediente cadastrado.</div>}
+                                            </div>
+                                        </Card>
+
+                                        <Card className="p-8">
+                                            <h3 className="text-lg font-bold text-slate-800 flex items-center gap-2 mb-6 pb-4 border-b border-slate-100"><Book className="text-blue-500"/> Modo de Preparo</h3>
+                                            <div className="prose prose-slate max-w-none text-slate-600 leading-relaxed whitespace-pre-wrap">
+                                                {currentRecipe.instructions || "Sem instruções de preparo definidas."}
+                                            </div>
+                                        </Card>
+                                    </div>
+
+                                    <div className="space-y-6">
+                                        <Card className="p-6 bg-slate-900 text-white border-slate-700 shadow-xl">
+                                            <h3 className="font-bold text-lg mb-6 flex items-center gap-2 text-emerald-400"><DollarSign/> Análise Financeira</h3>
+                                            <div className="space-y-4">
+                                                <div className="flex justify-between items-end">
+                                                    <span className="text-slate-400 text-sm">Custo Total (CMV)</span>
+                                                    <span className="text-xl font-bold">{formatCurrency(costs.costPerPortion)}</span>
+                                                </div>
+                                                <div className="flex justify-between items-end">
+                                                    <span className="text-slate-400 text-sm">Preço de Venda</span>
+                                                    <span className="text-xl font-bold text-emerald-400">{formatCurrency(currentRecipe.final_price)}</span>
+                                                </div>
+                                                <div className="w-full h-px bg-slate-700 my-2"></div>
+                                                <div className="flex justify-between items-end">
+                                                    <span className="text-slate-400 text-sm">Lucro Líquido</span>
+                                                    <span className={`text-2xl font-bold ${costs.profit > 0 ? 'text-emerald-500' : 'text-red-500'}`}>{formatCurrency(costs.profit)}</span>
+                                                </div>
+                                                <div className="flex justify-between items-end">
+                                                    <span className="text-slate-400 text-sm">Margem Real</span>
+                                                    <span className={`text-sm font-bold px-2 py-1 rounded ${costs.margin > 20 ? 'bg-emerald-500/20 text-emerald-400' : 'bg-red-500/20 text-red-400'}`}>{costs.margin.toFixed(1)}%</span>
+                                                </div>
+                                            </div>
+                                        </Card>
+
+                                        <Card className="p-6">
+                                            <h3 className="font-bold text-slate-800 mb-4 text-sm uppercase tracking-wide">Custos Operacionais</h3>
+                                            <div className="space-y-3 text-sm">
+                                                <div className="flex justify-between text-slate-600"><span>Mão de Obra</span><span className="font-medium">{formatCurrency(currentRecipe.extra_labor)}</span></div>
+                                                <div className="flex justify-between text-slate-600"><span>Embalagens</span><span className="font-medium">{formatCurrency(currentRecipe.extra_packaging)}</span></div>
+                                                <div className="flex justify-between text-slate-600"><span>Gás/Energia</span><span className="font-medium">{formatCurrency(currentRecipe.extra_utilities)}</span></div>
+                                                <div className="flex justify-between text-slate-600"><span>Impostos ({currentRecipe.taxes_pct}%)</span><span className="font-medium text-red-500">-{formatCurrency(costs.tax)}</span></div>
+                                            </div>
+                                        </Card>
+                                    </div>
                                 </div>
                             );
                         })()}
@@ -1294,198 +973,557 @@ function HubChefApp() {
                 </div>
             )}
 
-            {view === 'fixed-expenses' && (
-                <div className="p-6 md:p-10 w-full max-w-[1600px] mx-auto flex gap-8 h-full overflow-hidden">
-                    <div className="w-1/3 flex flex-col gap-4">
-                        <div className="flex justify-between items-center mb-2"><h1 className="text-2xl font-bold text-slate-900 flex items-center gap-2"><TrendingUp className="text-amber-500"/> Despesas Fixas</h1><button onClick={() => handleEditExpense()} className="bg-slate-900 text-white p-2 rounded-lg hover:bg-slate-700"><Plus/></button></div>
-                        <div className="relative mb-2">
-                            <Calendar className="absolute left-3 top-2.5 text-slate-400" size={16}/>
-                            <select className="pl-9 pr-4 py-2 w-full bg-white border border-slate-200 rounded-lg text-sm focus:ring-2 focus:ring-amber-500 outline-none appearance-none cursor-pointer text-slate-600 font-medium" onChange={(e) => {}}>
-                                <option value="all">Todos os Anos</option>
-                                {[...new Set(expenses.map(e => e.year))].sort((a,b) => b-a).map(y => <option key={y} value={y}>{y}</option>)}
-                            </select>
+            {/* VIEW: RECIPE EDITOR */}
+            {view === 'recipe-editor' && currentRecipe && (
+                 <div className="absolute inset-0 z-50 bg-slate-50 flex flex-col h-full w-full overflow-hidden animate-in fade-in slide-in-from-right-4 duration-300">
+                    <div className="bg-white border-b border-slate-200 px-8 py-4 flex justify-between items-center shadow-sm shrink-0">
+                        <div className="flex items-center gap-6">
+                            <button onClick={handleBackFromEditor} className="p-2 hover:bg-slate-100 rounded-full text-slate-500 transition-colors"><ChevronLeft size={24}/></button>
+                            <div><h1 className="text-2xl font-bold text-slate-900 tracking-tight">{currentRecipe.name || 'Nova Receita'}</h1><p className="text-sm text-slate-500 font-medium mt-0.5">{currentRecipe.category || 'Sem categoria'} • {currentRecipe.type === 'sub_recipe' ? 'Sub-receita' : 'Produto Final'}</p></div>
                         </div>
-                        <div className="flex-1 overflow-y-auto space-y-3 pr-2">
-                            {expenses.map(exp => (
-                                <Card key={exp.id} onClick={() => handleEditExpense(exp)} className={`p-4 cursor-pointer hover:border-amber-400 transition-all ${activeExpenseId === exp.id ? 'border-amber-500 ring-1 ring-amber-500 bg-amber-50' : ''}`} >
-                                    <div className="flex justify-between items-start mb-2"><div><span className="font-bold text-lg text-slate-800">{formatMonth(exp.month)} / {exp.year}</span><div className="text-xs text-slate-500">{exp.total_dishes_sold} pratos vendidos</div></div><div className="text-right"><div className="font-bold text-amber-600">{formatCurrency(exp.total_expenses)}</div><div className="text-[10px] font-bold uppercase text-slate-400">Total</div></div></div>
-                                    <div className="flex justify-between items-center pt-2 border-t border-slate-100"><span className="text-xs text-slate-500">Custo Fixo Unitário</span><span className="font-bold text-slate-700 bg-slate-100 px-2 py-0.5 rounded">{formatCurrency(exp.cost_per_dish)}</span></div>
-                                    <div className="flex justify-end mt-2"><button onClick={(e) => { e.stopPropagation(); confirmDelete('expenses', [exp.id]); }} className="text-slate-300 hover:text-red-500 p-1 z-10"><Trash2 size={14}/></button></div>
-                                </Card>
-                            ))}
-                            {expenses.length === 0 && <div className="text-center text-slate-400 py-10">Nenhum registro encontrado.</div>}
+                        <div className="flex gap-3">
+                             <button onClick={handleBackFromEditor} className="px-6 py-2.5 rounded-xl font-bold text-slate-500 hover:bg-slate-100 transition-colors">Cancelar</button>
+                             <button onClick={saveRecipe} className="bg-emerald-600 hover:bg-emerald-700 text-white px-8 py-2.5 rounded-xl font-bold shadow-lg shadow-emerald-600/20 flex items-center gap-2 transition-all transform active:scale-95"><Save size={18}/> Salvar Ficha</button>
                         </div>
                     </div>
-                    <div className="flex-1 flex flex-col h-full overflow-hidden">
-                        {activeExpenseId ? (
-                            <Card className="flex-1 flex flex-col overflow-hidden h-full border-amber-200">
-                                <div className="p-6 border-b border-slate-100 bg-slate-50 flex justify-between items-center"><h3 className="font-bold text-lg text-slate-800 flex items-center gap-2">{activeExpenseId === 'new' ? 'Novo Registro' : 'Editar Registro'}</h3><div className="flex gap-2"><button onClick={() => setActiveExpenseId(null)} className="px-4 py-2 text-slate-500 hover:bg-slate-200 rounded-lg">Cancelar</button><button onClick={handleSaveExpense} className="bg-amber-500 hover:bg-amber-600 text-white px-6 py-2 rounded-lg font-bold shadow-lg shadow-amber-500/20 flex items-center gap-2"><Save size={18}/> Salvar</button></div></div>
-                                <div className="p-6 overflow-y-auto flex-1">
-                                    <div className="grid grid-cols-3 gap-6 mb-8"><InputGroup label="Mês"><StyledSelect value={expenseForm.month} onChange={e => setExpenseForm({...expenseForm, month: e.target.value})}>{Array.from({length:12}, (_,i) => <option key={i+1} value={i+1}>{formatMonth(i+1)}</option>)}</StyledSelect></InputGroup><InputGroup label="Ano"><StyledInput type="number" value={expenseForm.year} onChange={e => setExpenseForm({...expenseForm, year: e.target.value})} /></InputGroup><InputGroup label="Pratos Vendidos"><StyledInput type="number" value={expenseForm.dishes} onChange={e => setExpenseForm({...expenseForm, dishes: e.target.value})} /></InputGroup></div>
-                                    <h4 className="font-bold text-sm text-slate-500 uppercase tracking-wider mb-4 border-b pb-2 flex justify-between items-center">Detalhamento Financeiro</h4>
-                                    <div className="space-y-3">
-                                        {expenseForm.items.map((item, idx) => {
-                                            const category = categories.find(c => c.id === item.category_id);
-                                            return (
-                                                <div key={idx} className="flex justify-between items-center p-3 bg-slate-50 rounded-lg border border-slate-100 hover:border-amber-200 transition-colors gap-4">
-                                                    <div className="flex-1">
-                                                        <StyledSelect value={item.category_id} onChange={(e) => { const newItems = [...expenseForm.items]; newItems[idx].category_id = e.target.value; setExpenseForm({...expenseForm, items: newItems}); }}>
-                                                            <option value="" disabled>Selecione a Categoria</option>
-                                                            {expenseCategories.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
-                                                        </StyledSelect>
-                                                    </div>
-                                                    <div className="w-40 relative">
-                                                        <span className="absolute left-3 top-2.5 text-slate-400 text-xs">R$</span>
-                                                        <input type="number" className="w-full pl-8 pr-3 py-2 border border-slate-200 rounded-lg text-right font-mono font-medium focus:ring-2 focus:ring-amber-500 outline-none" placeholder="0.00" value={item.amount} onChange={(e) => { const newItems = [...expenseForm.items]; newItems[idx].amount = e.target.value; setExpenseForm({...expenseForm, items: newItems}); }}/>
-                                                    </div>
-                                                    <button onClick={() => { const newItems = expenseForm.items.filter((_, i) => i !== idx); setExpenseForm({...expenseForm, items: newItems}); }} className="p-2 text-slate-400 hover:text-red-500 transition-colors"><X size={18}/></button>
-                                                </div>
-                                            )
-                                        })}
-                                        <button onClick={() => setExpenseForm(prev => ({...prev, items: [...prev.items, { category_id: '', amount: '' }]}))} className="w-full py-2 border border-dashed border-slate-300 text-slate-500 rounded-lg hover:bg-slate-50 hover:text-slate-700 text-sm font-medium flex justify-center items-center gap-2 mb-4"><Plus size={16}/> Adicionar Linha de Despesa</button>
-                                        
-                                        <div className="mt-6 pt-4 border-t border-slate-100 bg-blue-50/50 p-4 rounded-xl">
-                                            <label className="text-xs font-bold text-blue-600 uppercase mb-2 block flex items-center gap-2"><Zap size={14}/> Cadastro Rápido de Categoria</label>
-                                            <div className="flex gap-2">
-                                                <input className="flex-1 bg-white border border-blue-200 text-slate-900 text-sm rounded-lg px-3 py-2 focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none placeholder:text-blue-300" placeholder="Digite o nome da nova categoria..." value={quickCatName} onChange={(e) => setQuickCatName(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && handleAddQuickCategory()} />
-                                                <button onClick={handleAddQuickCategory} disabled={!quickCatName.trim()} className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg font-bold text-sm shadow-sm transition-all disabled:opacity-50 disabled:cursor-not-allowed">Criar & Adicionar</button>
-                                            </div>
-                                            <p className="text-[10px] text-blue-400 mt-2 ml-1">Dica: Isso criará a categoria no sistema e já adicionará uma linha acima.</p>
+                    <div className="flex-1 overflow-y-auto p-8 max-w-5xl mx-auto w-full" ref={editorScrollRef}>
+                        <div className="space-y-8 pb-20">
+                            <Card className="p-6">
+                                <h3 className="text-lg font-bold text-slate-800 mb-6 flex items-center gap-2"><FileText size={20} className="text-blue-500"/> Dados Básicos</h3>
+                                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                                    <InputGroup label="Nome da Receita"><StyledInput value={currentRecipe.name} onChange={e => { setCurrentRecipe({...currentRecipe, name: e.target.value}); setHasUnsavedChanges(true); }} placeholder="Ex: Risoto de Funghi" autoFocus/></InputGroup>
+                                    <InputGroup label="Categoria">
+                                        <div className="flex gap-2">
+                                            <StyledSelect value={currentRecipe.category} onChange={e => { setCurrentRecipe({...currentRecipe, category: e.target.value}); setHasUnsavedChanges(true); }}>{recipeCategories.map(c => <option key={c.id} value={c.name}>{c.name}</option>)}</StyledSelect>
+                                            <button onClick={() => { setQuickCatName(""); setCatTab('recipe'); setView('categories'); }} className="p-2.5 bg-slate-100 hover:bg-slate-200 rounded-lg text-slate-600"><Settings size={18}/></button>
                                         </div>
+                                    </InputGroup>
+                                    <InputGroup label="Rendimento (Porções)"><StyledInput type="number" value={currentRecipe.portions} onChange={e => { setCurrentRecipe({...currentRecipe, portions: Number(e.target.value)}); setHasUnsavedChanges(true); }}/></InputGroup>
+                                    {currentRecipe.type === 'sub_recipe' && <InputGroup label="Unidade de Medida"><StyledSelect value={currentRecipe.unit} onChange={e => { setCurrentRecipe({...currentRecipe, unit: e.target.value}); setHasUnsavedChanges(true); }}>{UNITS.map(u => <option key={u} value={u}>{u}</option>)}</StyledSelect></InputGroup>}
+                                    <InputGroup label="Status"><div className="flex gap-2"><button onClick={() => { setCurrentRecipe({...currentRecipe, status: 'active'}); setHasUnsavedChanges(true); }} className={`flex-1 py-2.5 rounded-lg text-sm font-bold border transition-all ${currentRecipe.status === 'active' ? 'bg-emerald-100 border-emerald-200 text-emerald-700' : 'bg-white border-slate-200 text-slate-400'}`}>Ativo</button><button onClick={() => { setCurrentRecipe({...currentRecipe, status: 'inactive'}); setHasUnsavedChanges(true); }} className={`flex-1 py-2.5 rounded-lg text-sm font-bold border transition-all ${currentRecipe.status === 'inactive' ? 'bg-slate-100 border-slate-300 text-slate-600' : 'bg-white border-slate-200 text-slate-400'}`}>Inativo</button></div></InputGroup>
+                                </div>
+                            </Card>
+
+                            <Card className="p-6">
+                                <div className="flex justify-between items-center mb-6">
+                                    <h3 className="text-lg font-bold text-slate-800 flex items-center gap-2"><Package size={20} className="text-orange-500"/> Composição (Ingredientes)</h3>
+                                    <div className="flex gap-2">
+                                        <button onClick={() => {
+                                            if (ingredients.length === 0) { showToast('error', 'Cadastre insumos primeiro.'); return; }
+                                            const newItem: RecipeItemDB = { item_type: 'ingredient', ref_id: ingredients[0].id, qty: 1, unit: ingredients[0].unit, sort_order: currentRecipe.items.length };
+                                            setCurrentRecipe({...currentRecipe, items: [...currentRecipe.items, newItem]}); setHasUnsavedChanges(true); scrollToBottom();
+                                        }} className="text-xs bg-slate-100 hover:bg-slate-200 px-3 py-1.5 rounded-lg font-bold text-slate-700 flex items-center gap-1"><Plus size={14}/> Add Insumo</button>
+                                        <button onClick={() => {
+                                            const subs = recipes.filter(r => r.type === 'sub_recipe' && r.id !== currentRecipe.id);
+                                            if (subs.length === 0) { showToast('error', 'Sem bases disponíveis.'); return; }
+                                            const newItem: RecipeItemDB = { item_type: 'sub_recipe', ref_id: subs[0].id!, qty: 1, unit: subs[0].unit, sort_order: currentRecipe.items.length };
+                                            setCurrentRecipe({...currentRecipe, items: [...currentRecipe.items, newItem]}); setHasUnsavedChanges(true); scrollToBottom();
+                                        }} className="text-xs bg-orange-50 hover:bg-orange-100 px-3 py-1.5 rounded-lg font-bold text-orange-700 flex items-center gap-1"><Layers size={14}/> Add Base</button>
                                     </div>
                                 </div>
-                                <div className="bg-slate-900 text-white p-4 flex justify-between items-center"><div className="text-sm opacity-80">Total Despesas</div><div className="text-2xl font-bold">{formatCurrency(expenseForm.items.reduce((acc, i) => acc + (Number(i.amount)||0), 0))}</div></div>
-                            </Card>
-                        ) : (
-                            <div className="flex-1 flex flex-col items-center justify-center text-slate-300 bg-slate-50/50 rounded-xl border border-dashed border-slate-200"><Calculator size={48} className="mb-4 opacity-50"/><p>Selecione um mês ou crie um novo registro</p></div>
-                        )}
-                    </div>
-                </div>
-            )}
-
-            {view === 'categories' && (
-                <div className="p-10 max-w-4xl mx-auto">
-                    <h1 className="text-3xl font-bold text-slate-900 mb-8 flex items-center gap-3"><Settings className="text-slate-600"/> Configurações</h1>
-                    
-                    <div className="flex gap-4 mb-6 border-b border-slate-200 overflow-x-auto no-scrollbar">
-                        <button onClick={() => setCatTab('recipe')} className={`pb-3 px-4 font-bold text-sm transition-all border-b-2 whitespace-nowrap flex items-center gap-2 ${catTab === 'recipe' ? 'border-emerald-500 text-emerald-600' : 'border-transparent text-slate-500 hover:text-slate-700'}`}><ChefHat size={16}/> Categorias de Receitas</button>
-                        <button onClick={() => setCatTab('expense')} className={`pb-3 px-4 font-bold text-sm transition-all border-b-2 whitespace-nowrap flex items-center gap-2 ${catTab === 'expense' ? 'border-amber-500 text-amber-600' : 'border-transparent text-slate-500 hover:text-slate-700'}`}><TrendingUp size={16}/> Plano de Contas</button>
-                        <button onClick={() => setCatTab('platform')} className={`pb-3 px-4 font-bold text-sm transition-all border-b-2 whitespace-nowrap flex items-center gap-2 ${catTab === 'platform' ? 'border-purple-500 text-purple-600' : 'border-transparent text-slate-500 hover:text-slate-700'}`}><ShoppingBag size={16}/> Plataformas de Delivery</button>
-                    </div>
-
-                    {catTab === 'platform' ? (
-                        <>
-                            <Card className="p-6 mb-6 border-l-4 border-l-purple-500">
-                                <h3 className="font-bold text-slate-800 mb-4 text-sm flex items-center gap-2"><Plus size={16} className="text-purple-500"/> Adicionar Nova Plataforma</h3>
-                                <div className="flex gap-4 items-end">
-                                    <div className="flex-1"><label className="text-xs font-bold text-slate-500 uppercase mb-1 block">Nome da Plataforma</label><StyledInput placeholder="Ex: iFood, Rappi..." value={platformForm.name} onChange={e => setPlatformForm({...platformForm, name: e.target.value})} /></div>
-                                    <div className="w-40"><label className="text-xs font-bold text-slate-500 uppercase mb-1 block">Taxa (%)</label><div className="relative"><StyledInput type="number" placeholder="0" className="pr-8" value={platformForm.percentage} onChange={e => setPlatformForm({...platformForm, percentage: e.target.value})} /><span className="absolute right-3 top-2.5 text-slate-400 text-sm font-bold">%</span></div></div>
-                                    <button onClick={handleSavePlatform} disabled={!platformForm.name} className="bg-purple-600 hover:bg-purple-700 text-white px-6 py-2.5 rounded-lg font-bold shadow-lg shadow-purple-600/20 transition-all disabled:opacity-50 disabled:cursor-not-allowed h-[42px]">Salvar</button>
+                                <div className="space-y-3">
+                                    {currentRecipe.items.map((item, idx) => (
+                                        <div key={idx} className="flex gap-3 items-end bg-slate-50 p-3 rounded-lg border border-slate-100 group hover:border-blue-200 transition-colors">
+                                            <div className="flex-1">
+                                                <label className="text-[10px] font-bold text-slate-400 uppercase mb-1 block">{item.item_type === 'ingredient' ? 'Insumo' : 'Base'}</label>
+                                                <StyledSelect 
+                                                    value={item.ref_id} 
+                                                    onChange={e => {
+                                                        const newItems = [...currentRecipe.items];
+                                                        newItems[idx].ref_id = e.target.value;
+                                                        if (item.item_type === 'ingredient') {
+                                                            const ing = ingredients.find(i => i.id === e.target.value);
+                                                            if(ing) newItems[idx].unit = ing.unit;
+                                                        } else {
+                                                            const sub = recipes.find(r => r.id === e.target.value);
+                                                            if(sub) newItems[idx].unit = sub.unit;
+                                                        }
+                                                        setCurrentRecipe({...currentRecipe, items: newItems}); setHasUnsavedChanges(true);
+                                                    }}
+                                                    className="bg-white py-1.5 text-sm"
+                                                >
+                                                    {item.item_type === 'ingredient' 
+                                                        ? ingredients.map(i => <option key={i.id} value={i.id}>{i.name}</option>)
+                                                        : recipes.filter(r => r.type === 'sub_recipe' && r.id !== currentRecipe.id).map(r => <option key={r.id} value={r.id!}>{r.name}</option>)
+                                                    }
+                                                </StyledSelect>
+                                            </div>
+                                            <div className="w-24">
+                                                <label className="text-[10px] font-bold text-slate-400 uppercase mb-1 block">Qtd</label>
+                                                <StyledInput type="number" className="bg-white py-1.5 text-sm" value={item.qty} onChange={e => { const newItems = [...currentRecipe.items]; newItems[idx].qty = Number(e.target.value); setCurrentRecipe({...currentRecipe, items: newItems}); setHasUnsavedChanges(true); }}/>
+                                            </div>
+                                            <div className="w-20">
+                                                <label className="text-[10px] font-bold text-slate-400 uppercase mb-1 block">Un</label>
+                                                <div className="py-2 px-3 bg-slate-200 text-slate-600 rounded-lg text-sm text-center font-medium">{item.unit}</div>
+                                            </div>
+                                            <button onClick={() => { setCurrentRecipe({...currentRecipe, items: currentRecipe.items.filter((_, i) => i !== idx)}); setHasUnsavedChanges(true); }} className="p-2 mb-0.5 text-slate-300 hover:text-red-500 hover:bg-red-50 rounded-lg transition-colors"><Trash2 size={18}/></button>
+                                        </div>
+                                    ))}
+                                    {currentRecipe.items.length === 0 && <div className="text-center py-8 text-slate-400 text-sm border-2 border-dashed border-slate-100 rounded-xl bg-slate-50/50">Nenhum ingrediente adicionado.</div>}
                                 </div>
                             </Card>
-                            <div className="space-y-3">{deliveryPlatforms.map(plat => (<Card key={plat.id} className="p-4 flex justify-between items-center group hover:border-purple-200 transition-all"><div className="flex items-center gap-4"><div className="bg-purple-50 p-2 rounded-lg text-purple-600"><Bike size={20}/></div><div><span className="font-bold text-slate-800 block">{plat.name}</span><span className="text-xs text-slate-500">Taxa de serviço configurada</span></div></div><div className="flex items-center gap-6"><div className="text-right"><span className="text-2xl font-bold text-purple-700">{plat.percentage}%</span><span className="text-[10px] uppercase font-bold text-slate-400 block">Comissão</span></div><button onClick={() => confirmDelete('delivery_platforms', [plat.id])} className="text-slate-300 hover:text-red-500 p-2 rounded-full hover:bg-red-50 transition-colors"><Trash2 size={18}/></button></div></Card>))}</div>
-                        </>
-                    ) : (
-                        <>
-                            <Card className="p-6 mb-6">
-                                <div className="flex gap-4"><StyledInput placeholder={catTab === 'recipe' ? "Nova Categoria (ex: Entradas Frias)" : "Nova Conta (ex: Marketing)"} value={newCatInput} onChange={e => setNewCatInput(e.target.value)} /><button onClick={async () => { if(newCatInput) { await supabase.from('categories').insert({user_id: session.user.id, name: newCatInput, type: catTab}); setNewCatInput(''); fetchData(); } }} className={`text-white px-6 rounded-lg font-bold ${catTab === 'recipe' ? 'bg-emerald-600' : 'bg-amber-600'}`}>Adicionar</button></div>
+                            
+                            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                                <Card className="p-6">
+                                    <h3 className="text-lg font-bold text-slate-800 mb-6 flex items-center gap-2"><Hammer size={20} className="text-purple-500"/> Custos Operacionais (Estimados)</h3>
+                                    <div className="space-y-4">
+                                        <div className="grid grid-cols-3 gap-4 pb-4 border-b border-slate-100">
+                                            <div className="col-span-3 text-xs font-bold text-slate-500 uppercase">Tempo de Preparo (Minutos)</div>
+                                            <InputGroup label="Mise en Place"><StyledInput type="number" placeholder="0" value={currentRecipe.operational_prep} onChange={e => { setCurrentRecipe({...currentRecipe, operational_prep: Number(e.target.value)}); setHasUnsavedChanges(true); }}/></InputGroup>
+                                            <InputGroup label="Cocção"><StyledInput type="number" placeholder="0" value={currentRecipe.operational_cook} onChange={e => { setCurrentRecipe({...currentRecipe, operational_cook: Number(e.target.value)}); setHasUnsavedChanges(true); }}/></InputGroup>
+                                            <InputGroup label="Montagem"><StyledInput type="number" placeholder="0" value={currentRecipe.operational_plating} onChange={e => { setCurrentRecipe({...currentRecipe, operational_plating: Number(e.target.value)}); setHasUnsavedChanges(true); }}/></InputGroup>
+                                        </div>
+                                        <div className="space-y-4">
+                                            <div className="text-xs font-bold text-slate-500 uppercase mt-2">Custos Extras (R$ / Total da Receita)</div>
+                                            <div className="grid grid-cols-2 gap-4">
+                                                <InputGroup label="Embalagens"><StyledInput type="number" placeholder="0.00" value={currentRecipe.extra_packaging} onChange={e => { setCurrentRecipe({...currentRecipe, extra_packaging: Number(e.target.value)}); setHasUnsavedChanges(true); }}/></InputGroup>
+                                                <InputGroup label="Mão de Obra Extra"><StyledInput type="number" placeholder="0.00" value={currentRecipe.extra_labor} onChange={e => { setCurrentRecipe({...currentRecipe, extra_labor: Number(e.target.value)}); setHasUnsavedChanges(true); }}/></InputGroup>
+                                                <InputGroup label="Gás/Energia"><StyledInput type="number" placeholder="0.00" value={currentRecipe.extra_utilities} onChange={e => { setCurrentRecipe({...currentRecipe, extra_utilities: Number(e.target.value)}); setHasUnsavedChanges(true); }}/></InputGroup>
+                                                <InputGroup label="Gelo/Guarnições"><StyledInput type="number" placeholder="0.00" value={currentRecipe.extra_ice_garnish} onChange={e => { setCurrentRecipe({...currentRecipe, extra_ice_garnish: Number(e.target.value)}); setHasUnsavedChanges(true); }}/></InputGroup>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </Card>
+
+                                <Card className="p-6 bg-slate-900 text-white border-slate-700">
+                                    <h3 className="text-lg font-bold mb-6 flex items-center gap-2 text-emerald-400"><DollarSign size={20}/> Precificação</h3>
+                                    <div className="space-y-4">
+                                         <div className="grid grid-cols-2 gap-4">
+                                            <div className="space-y-1"><label className="text-[10px] font-bold text-slate-400 uppercase">Impostos (%)</label><input className="w-full bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-white outline-none focus:border-emerald-500" type="number" value={currentRecipe.taxes_pct} onChange={e => { setCurrentRecipe({...currentRecipe, taxes_pct: Number(e.target.value)}); setHasUnsavedChanges(true); }}/></div>
+                                            <div className="space-y-1"><label className="text-[10px] font-bold text-slate-400 uppercase">Taxa Cartão (%)</label><input className="w-full bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-white outline-none focus:border-emerald-500" type="number" value={currentRecipe.card_fee_pct} onChange={e => { setCurrentRecipe({...currentRecipe, card_fee_pct: Number(e.target.value)}); setHasUnsavedChanges(true); }}/></div>
+                                         </div>
+                                         <div className="pt-4 border-t border-slate-700">
+                                             <div className="space-y-1 mb-4">
+                                                <label className="text-[10px] font-bold text-slate-400 uppercase">Plataforma de Delivery (Simulação)</label>
+                                                <select className="w-full bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-white outline-none focus:border-emerald-500" value={currentRecipe.delivery_platform_id || ''} onChange={e => { setCurrentRecipe({...currentRecipe, delivery_platform_id: e.target.value || null}); setHasUnsavedChanges(true); }}>
+                                                    <option value="">Venda Balcão (Nenhuma)</option>
+                                                    {deliveryPlatforms.map(p => <option key={p.id} value={p.id}>{p.name} ({p.percentage}%)</option>)}
+                                                </select>
+                                             </div>
+                                             <div className="space-y-1">
+                                                <label className="text-[10px] font-bold text-slate-400 uppercase">Preço Final de Venda (R$)</label>
+                                                <div className="relative">
+                                                    <DollarSign className="absolute left-3 top-2.5 text-emerald-500" size={18}/>
+                                                    <input className="w-full pl-10 pr-4 py-3 bg-slate-800 border border-slate-700 rounded-lg text-xl font-bold text-emerald-400 outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500" type="number" value={currentRecipe.final_price} onChange={e => { setCurrentRecipe({...currentRecipe, final_price: Number(e.target.value)}); setHasUnsavedChanges(true); }}/>
+                                                </div>
+                                             </div>
+                                         </div>
+                                    </div>
+                                </Card>
+                            </div>
+
+                            <Card className="p-6">
+                                <h3 className="text-lg font-bold text-slate-800 mb-6 flex items-center gap-2"><Book size={20} className="text-slate-500"/> Modo de Preparo</h3>
+                                <textarea className="w-full h-64 p-4 bg-slate-50 border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-emerald-500 resize-y text-slate-700 leading-relaxed" placeholder="Descreva o passo a passo da receita..." value={currentRecipe.instructions} onChange={e => { setCurrentRecipe({...currentRecipe, instructions: e.target.value}); setHasUnsavedChanges(true); }}></textarea>
                             </Card>
-                            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">{categories.filter(c => c.type === catTab).map(cat => (<Card key={cat.id} className="p-4 flex justify-between items-center group hover:shadow-md transition-all"><span className="font-medium text-slate-700">{cat.name}</span><button onClick={() => confirmDelete('categories', [cat.id])} className="text-slate-300 hover:text-red-500 opacity-0 group-hover:opacity-100 transition-opacity"><Trash2 size={16}/></button></Card>))}</div>
-                        </>
-                    )}
-                </div>
+                        </div>
+                    </div>
+                 </div>
             )}
             
+            {/* VIEW: PRODUCTION */}
             {view === 'production' && (
                 <div className="p-6 md:p-10 w-full max-w-7xl mx-auto">
-                    <header className="flex justify-between items-center mb-8">
-                        <div><h1 className="text-3xl font-bold text-slate-900 tracking-tight flex items-center gap-3"><ClipboardCheck className="text-emerald-600" size={32}/> Controle de Produção</h1><p className="text-slate-500 mt-1 ml-11">Realize a baixa de produção e compare custos Teóricos vs. Reais.</p></div>
-                        <button onClick={startProduction} className="bg-emerald-600 hover:bg-emerald-700 text-white px-5 py-2.5 rounded-lg font-bold shadow-lg shadow-emerald-600/20 flex items-center gap-2 transition-all transform active:scale-95"><Plus size={20} /> Nova Produção</button>
-                    </header>
-                    <div className="bg-white p-4 mb-6 rounded-xl border border-slate-200 shadow-sm flex flex-col md:flex-row gap-4 items-center">
-                        <div className="relative flex-1 w-full"><Search className="absolute left-3 top-2.5 text-slate-400" size={18}/><input placeholder="Buscar produção por nome da receita..." className="pl-10 pr-4 py-2 w-full bg-slate-50 border border-slate-200 rounded-lg text-sm focus:ring-2 focus:ring-emerald-500 outline-none transition-all placeholder:text-slate-400" value={productionSearch} onChange={e => setProductionSearch(e.target.value)} /></div>
-                        <div className="flex gap-3 w-full md:w-auto"><div className="relative flex-1 md:w-48"><Calendar className="absolute left-3 top-2.5 text-slate-400" size={16}/><select className="pl-9 pr-4 py-2 w-full bg-slate-50 border border-slate-200 rounded-lg text-sm focus:ring-2 focus:ring-emerald-500 outline-none appearance-none cursor-pointer text-slate-600 font-medium" value={productionDateFilter} onChange={e => setProductionDateFilter(e.target.value)}><option value="all">Todo o Período</option><option value="7days">Últimos 7 dias</option><option value="30days">Últimos 30 dias</option></select></div></div>
+                    <div className="flex justify-between items-center mb-8">
+                        <div><h1 className="text-3xl font-bold text-slate-900 flex items-center gap-3"><ClipboardCheck className="text-blue-600" size={32}/> Produção</h1><p className="text-slate-500 mt-1 ml-11">Controle de produção e histórico de rendimento.</p></div>
+                        <button onClick={startProduction} className="bg-blue-600 hover:bg-blue-700 text-white px-5 py-2.5 rounded-lg font-bold shadow-lg shadow-blue-600/20 flex items-center gap-2 transition-all"><Play size={20} fill="currentColor"/> Iniciar Produção</button>
                     </div>
+
+                    <div className="bg-white p-4 mb-8 rounded-xl border border-slate-200 shadow-sm flex flex-col lg:flex-row gap-4 items-center">
+                        <div className="relative flex-1 w-full"><Search className="absolute left-3 top-2.5 text-slate-400" size={18}/><input placeholder="Buscar histórico..." className="pl-10 pr-4 py-2 w-full bg-slate-50 border border-slate-200 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 outline-none" value={productionSearch} onChange={e => setProductionSearch(e.target.value)} /></div>
+                    </div>
+                    
                     <Card className="overflow-hidden">
-                        <div className="overflow-x-auto">
-                            <table className="w-full text-left text-sm"><thead className="bg-slate-50 text-slate-500 font-semibold uppercase text-xs border-b border-slate-200"><tr><th className="p-4">Data</th><th className="p-4">Receita Produzida</th><th className="p-4 text-center">Tempo (Real)</th><th className="p-4 text-center">Rendimento (Real)</th><th className="p-4 text-right">Custo Total</th><th className="p-4 text-center">Variação</th><th className="p-4"></th></tr></thead>
-                                <tbody className="divide-y divide-slate-100">{productionRuns.filter(run => run.recipe_name.toLowerCase().includes(productionSearch.toLowerCase())).filter(run => { if (productionDateFilter === 'all') return true; const diffDays = Math.ceil(Math.abs(Number(new Date()) - Number(new Date(run.created_at))) / (1000 * 60 * 60 * 24)); return productionDateFilter === '7days' ? diffDays <= 7 : diffDays <= 30; }).map(run => { const variance = Number(run.planned_cost) > 0 ? ((Number(run.actual_cost) - Number(run.planned_cost)) / Number(run.planned_cost)) * 100 : 0; return (<tr key={run.id} className="hover:bg-slate-50 transition-colors"><td className="p-4 text-slate-600">{formatDate(run.created_at)}</td><td className="p-4 font-bold text-slate-800">{run.recipe_name}</td><td className="p-4 text-center text-slate-600">{run.actual_time_minutes} min</td><td className="p-4 text-center text-slate-600">{run.actual_yield} un</td><td className="p-4 text-right font-mono font-medium text-slate-700">{formatCurrency(run.actual_cost)}</td><td className="p-4 text-center"><span className={`px-2 py-1 rounded text-xs font-bold ${Math.abs(variance) < 2 ? 'bg-slate-100 text-slate-500' : variance > 0 ? 'bg-red-100 text-red-700' : 'bg-emerald-100 text-emerald-700'}`}>{variance > 0 ? '+' : ''}{variance.toFixed(1)}%</span></td><td className="p-4 text-right flex gap-2 justify-end"><button onClick={() => { setViewingProduction(run); setView('production-wizard'); setProdWizardStep(3); }} className="text-slate-300 hover:text-blue-500"><Eye size={16}/></button><button onClick={() => confirmDelete('production', [run.id])} className="text-slate-300 hover:text-red-500"><Trash2 size={16}/></button></td></tr>) })} {productionRuns.length === 0 && <tr><td colSpan={7} className="p-12 text-center text-slate-400">Nenhum registro de produção encontrado.</td></tr>}</tbody>
-                            </table>
-                        </div>
+                        <table className="w-full text-left text-sm">
+                            <thead className="bg-slate-50 text-slate-500 font-semibold uppercase text-xs border-b border-slate-200"><tr><th className="p-4 pl-6">Data</th><th className="p-4">Receita / Item</th><th className="p-4 text-center">Rendimento</th><th className="p-4 text-center">Eficiência</th><th className="p-4 text-right pr-6">Ações</th></tr></thead>
+                            <tbody className="divide-y divide-slate-100">
+                                {productionRuns.filter(p => p.recipe_name.toLowerCase().includes(productionSearch.toLowerCase())).map(run => {
+                                    const yieldDiff = run.actual_yield - run.planned_yield;
+                                    const isEfficient = yieldDiff >= 0;
+                                    return (
+                                        <tr key={run.id} className="hover:bg-slate-50 transition-colors">
+                                            <td className="p-4 pl-6 font-medium text-slate-700">{formatDate(run.created_at)}</td>
+                                            <td className="p-4 font-bold text-slate-800">{run.recipe_name}</td>
+                                            <td className="p-4 text-center"><span className="font-mono font-bold text-slate-700">{run.actual_yield} un</span> <span className="text-xs text-slate-400">/ {run.planned_yield} plan</span></td>
+                                            <td className="p-4 text-center"><span className={`text-xs font-bold px-2 py-1 rounded ${isEfficient ? 'bg-emerald-100 text-emerald-700' : 'bg-red-100 text-red-700'}`}>{isEfficient ? 'Eficiente' : 'Quebra'} ({yieldDiff > 0 ? '+' : ''}{yieldDiff})</span></td>
+                                            <td className="p-4 text-right pr-6 flex justify-end gap-2">
+                                                <button onClick={() => { setViewingProduction(run); setView('production-wizard'); }} className="p-2 text-slate-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"><Eye size={18}/></button>
+                                                <button onClick={() => confirmDelete('production', [run.id])} className="p-2 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors"><Trash2 size={18}/></button>
+                                            </td>
+                                        </tr>
+                                    );
+                                })}
+                                {productionRuns.length === 0 && <tr><td colSpan={5} className="p-12 text-center text-slate-400">Nenhum produção registrada.</td></tr>}
+                            </tbody>
+                        </table>
                     </Card>
                 </div>
             )}
             
-            {view === 'recipe-editor' && currentRecipe && (
-                <div className="absolute inset-0 z-50 bg-slate-50 flex flex-col h-full w-full">
-                    <div className="bg-white border-b border-slate-200 px-6 py-3 flex justify-between items-center shadow-sm shrink-0">
-                         <div className="flex items-center gap-4 flex-1"><button onClick={() => { if(hasUnsavedChanges) setShowUnsavedModal(true); else setView(currentRecipe.type === 'drink' ? 'drinks' : currentRecipe.type === 'sub_recipe' ? 'sub_recipes' : 'recipes'); }} className="p-2 hover:bg-slate-100 rounded-lg text-slate-500 transition-colors"><ChevronLeft/></button><div className="h-8 w-px bg-slate-200"></div><input className="text-xl font-bold bg-transparent outline-none placeholder-slate-300 w-full text-slate-800" placeholder="Nome da Ficha Técnica" value={currentRecipe.name} onChange={e => {setCurrentRecipe({...currentRecipe, name: e.target.value}); setHasUnsavedChanges(true); }} autoFocus/></div>
-                         <div className="flex gap-3 items-center"><button onClick={() => { setCurrentRecipe({...currentRecipe, status: currentRecipe.status === 'active' ? 'inactive' : 'active'}); setHasUnsavedChanges(true); }} className={`px-4 py-1.5 rounded-full text-xs font-bold flex items-center gap-2 border transition-all ${currentRecipe.status === 'active' ? 'bg-emerald-50 text-emerald-700 border-emerald-200' : 'bg-slate-50 text-slate-500 border-slate-200'}`}>{currentRecipe.status === 'active' ? <ToggleRight size={18}/> : <ToggleLeft size={18}/>} {currentRecipe.status === 'active' ? 'Ativo' : 'Inativo'}</button><div className="h-6 w-px bg-slate-200 mx-2"></div><button onClick={() => setView('print-preview')} className="flex items-center gap-2 text-slate-600 px-4 py-2 rounded-lg hover:bg-slate-100 font-medium transition-colors"><Printer size={18}/> Imprimir</button><button onClick={saveRecipe} className="bg-slate-900 text-white px-6 py-2 rounded-lg shadow-lg hover:bg-slate-800 flex items-center gap-2 font-bold transition-all transform active:scale-95"><Save size={18}/> Salvar</button></div>
+            {/* VIEW: PRODUCTION WIZARD */}
+            {view === 'production-wizard' && (
+                <div className="absolute inset-0 bg-slate-50 z-50 flex flex-col">
+                    <div className="bg-white border-b border-slate-200 p-6 flex justify-between items-center shadow-sm">
+                        <h3 className="text-xl font-bold text-slate-900 flex items-center gap-2">{viewingProduction ? <Eye className="text-blue-500"/> : <ClipboardCheck className="text-emerald-500"/>} {viewingProduction ? 'Detalhes da Produção' : 'Nova Produção'}</h3>
+                        <div className="flex gap-2">
+                            {!viewingProduction && prodWizardStep > 1 && <button onClick={() => setProdWizardStep(prodWizardStep-1)} className="text-slate-500 hover:bg-slate-100 px-4 py-2 rounded-lg">Voltar</button>}
+                            <button onClick={() => { setView('production'); setViewingProduction(null); }} className="text-slate-500 hover:text-red-500 px-4 py-2 hover:bg-slate-100 rounded-lg">Cancelar</button>
+                        </div>
                     </div>
-                    <div className="flex-1 overflow-hidden flex flex-row">
-                        <div ref={editorScrollRef} className="flex-1 overflow-y-auto p-8 space-y-8 bg-slate-50/50 scroll-smooth">
-                             <div className="grid grid-cols-12 gap-6">
-                                <Card className="col-span-8 p-6 grid grid-cols-2 gap-6">
-                                    <InputGroup label="Categoria"><StyledSelect value={currentRecipe.category} onChange={e => {setCurrentRecipe({...currentRecipe, category: e.target.value}); setHasUnsavedChanges(true);}}>{recipeCategories.map(c => <option key={c.id} value={c.name}>{c.name}</option>)}</StyledSelect></InputGroup>
-                                    <InputGroup label="Rendimento Final"><div className="flex gap-2"><StyledInput type="number" value={currentRecipe.portions} onChange={e => {setCurrentRecipe({...currentRecipe, portions: Number(e.target.value)}); setHasUnsavedChanges(true);}} /> <span className="flex items-center justify-center bg-slate-100 border border-slate-200 px-4 rounded-lg text-sm text-slate-600 font-medium min-w-[80px]">{currentRecipe.unit}</span></div></InputGroup>
+                    <div className="flex-1 overflow-y-auto p-8 max-w-5xl mx-auto w-full">
+                        {prodWizardStep === 1 && !viewingProduction && (
+                            <div className="space-y-6">
+                                <h2 className="text-2xl font-bold text-slate-800 text-center mb-8">O que vamos produzir hoje?</h2>
+                                <div className="max-w-xl mx-auto relative"><Search className="absolute left-4 top-3.5 text-slate-400" size={20}/><input className="w-full pl-12 pr-4 py-3 bg-white border border-slate-300 rounded-xl shadow-sm focus:ring-2 focus:ring-emerald-500 outline-none text-lg" placeholder="Buscar receita ou base..." autoFocus onChange={(e) => setProductionSearch(e.target.value)}/></div>
+                                <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-8">
+                                    {recipes.filter(r => r.name.toLowerCase().includes(productionSearch.toLowerCase()) && r.status === 'active').map(r => (
+                                        <button key={r.id} onClick={() => initProductionFromRecipe(r.id!)} className="flex items-center gap-4 p-4 bg-white border border-slate-200 rounded-xl hover:border-emerald-500 hover:shadow-md transition-all text-left group">
+                                            <div className="bg-slate-100 p-3 rounded-lg group-hover:bg-emerald-100 text-slate-500 group-hover:text-emerald-600 transition-colors"><ChefHat size={24}/></div>
+                                            <div><div className="font-bold text-slate-800 group-hover:text-emerald-700">{r.name}</div><div className="text-xs text-slate-500">{r.type === 'sub_recipe' ? 'Base / Sub-receita' : 'Produto Final'}</div></div>
+                                        </button>
+                                    ))}
+                                </div>
+                            </div>
+                        )}
+                        {(prodWizardStep === 2 || viewingProduction) && (
+                            <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+                                <div className="lg:col-span-2 space-y-6">
+                                    <Card className="p-6">
+                                        <h3 className="font-bold text-slate-800 mb-6 border-b pb-2">Itens Utilizados (Baixa de Estoque)</h3>
+                                        <div className="space-y-4">
+                                            {(viewingProduction ? viewingProduction.items : currentProduction.items).map((item, idx) => (
+                                                <div key={idx} className="flex justify-between items-center bg-slate-50 p-3 rounded-lg border border-slate-100">
+                                                    <div><div className="font-bold text-slate-700 text-sm">{item.item_name}</div><div className="text-xs text-slate-400">Previsto: {item.planned_qty} {item.unit}</div></div>
+                                                    <div className="w-32"><label className="text-[10px] font-bold text-slate-400 uppercase">Qtd Real</label>
+                                                        {viewingProduction ? <div className="font-bold">{item.actual_qty}</div> : 
+                                                            <StyledInput type="number" value={item.actual_qty} onChange={e => {
+                                                                const newItems = [...currentProduction.items!];
+                                                                newItems[idx].actual_qty = Number(e.target.value);
+                                                                setCurrentProduction({...currentProduction, items: newItems});
+                                                            }} className="py-1 text-sm bg-white"/>
+                                                        }
+                                                    </div>
+                                                </div>
+                                            ))}
+                                            {!viewingProduction && <button onClick={() => setShowAddProdItemModal(true)} className="w-full py-2 border border-dashed border-slate-300 text-slate-500 rounded-lg hover:border-emerald-500 hover:text-emerald-600 transition-colors flex justify-center items-center gap-2"><Plus size={16}/> Adicionar Insumo Extra</button>}
+                                        </div>
+                                    </Card>
+                                    <Card className="p-6">
+                                        <h3 className="font-bold text-slate-800 mb-6 border-b pb-2">Tempos e Processos</h3>
+                                        {!viewingProduction && (
+                                            <div className="flex gap-2 mb-4">
+                                                <button onClick={addOpStep} className="text-xs bg-slate-100 hover:bg-slate-200 px-3 py-1.5 rounded font-bold text-slate-700">+ Add Passo</button>
+                                            </div>
+                                        )}
+                                        {currentProduction.steps && currentProduction.steps.length > 0 ? (
+                                            <div className="space-y-3">
+                                                {currentProduction.steps.map((step, idx) => (
+                                                    <div key={step.id} className="flex gap-2 items-center">
+                                                        <span className="text-xs font-bold text-slate-400 w-6">#{idx+1}</span>
+                                                        <input className="flex-1 bg-slate-50 border border-slate-200 rounded px-2 py-1 text-sm" placeholder="Descrição da etapa..." value={step.description} onChange={e => updateOpStep(step.id, 'description', e.target.value)} disabled={!!viewingProduction} />
+                                                        <select className="bg-slate-50 border border-slate-200 rounded px-2 py-1 text-sm w-28" value={step.category} onChange={e => updateOpStep(step.id, 'category', e.target.value)} disabled={!!viewingProduction}><option value="prep">Mise en Place</option><option value="cook">Cocção</option><option value="plating">Montagem</option></select>
+                                                        <div className="relative w-24"><input type="number" className="w-full bg-slate-50 border border-slate-200 rounded pl-2 pr-8 py-1 text-sm" placeholder="0" value={step.time_minutes} onChange={e => updateOpStep(step.id, 'time_minutes', Number(e.target.value))} disabled={!!viewingProduction} /><span className="absolute right-2 top-1.5 text-xs text-slate-400">min</span></div>
+                                                    </div>
+                                                ))}
+                                            </div>
+                                        ) : (
+                                            <div className="grid grid-cols-3 gap-4">
+                                                <InputGroup label="Mise en Place (min)"><StyledInput type="number" value={viewingProduction ? ((Number(viewingProduction.actual_time_minutes)/3).toFixed(0)) : currentProduction.actual_prep} onChange={e => setCurrentProduction({...currentProduction, actual_prep: Number(e.target.value)})} disabled={!!viewingProduction}/></InputGroup>
+                                                <InputGroup label="Cocção (min)"><StyledInput type="number" value={viewingProduction ? ((Number(viewingProduction.actual_time_minutes)/3).toFixed(0)) : currentProduction.actual_cook} onChange={e => setCurrentProduction({...currentProduction, actual_cook: Number(e.target.value)})} disabled={!!viewingProduction}/></InputGroup>
+                                                <InputGroup label="Montagem (min)"><StyledInput type="number" value={viewingProduction ? ((Number(viewingProduction.actual_time_minutes)/3).toFixed(0)) : currentProduction.actual_plating} onChange={e => setCurrentProduction({...currentProduction, actual_plating: Number(e.target.value)})} disabled={!!viewingProduction}/></InputGroup>
+                                            </div>
+                                        )}
+                                    </Card>
+                                </div>
+                                <div className="space-y-6">
+                                    <Card className="p-6 bg-slate-900 text-white border-slate-700 sticky top-6">
+                                        <h3 className="font-bold text-lg mb-6 flex items-center gap-2 text-emerald-400"><Target/> Resultado Final</h3>
+                                        <div className="space-y-4">
+                                            <div className="p-4 bg-slate-800 rounded-xl border border-slate-700">
+                                                <label className="text-[10px] font-bold text-slate-400 uppercase block mb-1">Rendimento Obtido</label>
+                                                <div className="flex gap-2 items-baseline">
+                                                    {viewingProduction ? <span className="text-3xl font-bold">{viewingProduction.actual_yield}</span> : 
+                                                    <input type="number" value={currentProduction.actual_yield} onChange={e => setCurrentProduction({...currentProduction, actual_yield: Number(e.target.value)})} className="bg-transparent text-3xl font-bold w-full outline-none border-b border-slate-600 focus:border-emerald-500 text-emerald-400" placeholder="0"/>}
+                                                    <span className="text-sm text-slate-500">un/porções</span>
+                                                </div>
+                                            </div>
+                                            <div className="grid grid-cols-2 gap-4 text-sm">
+                                                <div><div className="text-slate-400">Custo Total</div><div className="font-bold text-white">{formatCurrency(viewingProduction ? viewingProduction.actual_cost : currentProduction.items!.reduce((acc, i) => acc + (i.actual_qty * i.unit_cost), 0))}</div></div>
+                                                <div><div className="text-slate-400">Tempo Total</div><div className="font-bold text-white">{viewingProduction ? viewingProduction.actual_time_minutes : (Number(currentProduction.actual_prep||0)+Number(currentProduction.actual_cook||0)+Number(currentProduction.actual_plating||0))} min</div></div>
+                                            </div>
+                                            {!viewingProduction && <button onClick={initiateProductionSave} className="w-full bg-emerald-600 hover:bg-emerald-700 text-white py-3 rounded-xl font-bold shadow-lg shadow-emerald-600/20 mt-4">Finalizar Produção</button>}
+                                        </div>
+                                    </Card>
+                                    <Card className="p-6">
+                                        <h3 className="font-bold text-slate-800 mb-4">Notas / Ocorrências</h3>
+                                        <textarea className="w-full h-32 p-3 bg-slate-50 border border-slate-200 rounded-lg text-sm resize-none" placeholder="Houve alguma quebra? Algum imprevisto?" value={viewingProduction ? viewingProduction.notes : currentProduction.notes} onChange={e => setCurrentProduction({...currentProduction, notes: e.target.value})} disabled={!!viewingProduction}></textarea>
+                                    </Card>
+                                </div>
+                            </div>
+                        )}
+                    </div>
+                </div>
+            )}
+            
+            {/* VIEW: FIXED EXPENSES */}
+            {view === 'fixed-expenses' && (
+                <div className="p-6 md:p-10 w-full max-w-7xl mx-auto">
+                    <div className="flex justify-between items-center mb-8">
+                        <div><h1 className="text-3xl font-bold text-slate-900 flex items-center gap-3"><TrendingUp className="text-red-600" size={32}/> Despesas Fixas</h1><p className="text-slate-500 mt-1 ml-11">Acompanhamento mensal de custos operacionais.</p></div>
+                        <button onClick={() => handleEditExpense()} className="bg-emerald-600 hover:bg-emerald-700 text-white px-5 py-2.5 rounded-lg font-bold shadow-lg shadow-emerald-600/20 flex items-center gap-2 transition-all"><Plus size={20} /> Nova Despesa Mensal</button>
+                    </div>
+                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                        {expenses.length === 0 ? (
+                            <div className="col-span-full text-center py-20 bg-slate-50 rounded-xl border-2 border-dashed border-slate-200"><p className="text-slate-400 font-medium">Nenhum registro de despesa encontrado.</p></div>
+                        ) : (
+                            expenses.map(expense => (
+                                <Card key={expense.id} className="p-6 hover:shadow-lg transition-all cursor-pointer group" onClick={() => handleEditExpense(expense)}>
+                                    <div className="flex justify-between items-start mb-4">
+                                        <div><h3 className="text-xl font-bold text-slate-800">{formatMonth(expense.month)} / {expense.year}</h3><p className="text-xs text-slate-500 uppercase font-bold mt-1">Total de Pratos: {expense.total_dishes_sold}</p></div>
+                                        <div className="p-2 bg-red-50 text-red-600 rounded-lg group-hover:bg-red-100 transition-colors"><TrendingUp size={20}/></div>
+                                    </div>
+                                    <div className="space-y-3">
+                                        <div className="flex justify-between items-end border-b border-slate-100 pb-2"><span className="text-sm text-slate-600">Total Despesas</span><span className="font-bold text-lg text-slate-800">{formatCurrency(expense.total_expenses)}</span></div>
+                                        <div className="flex justify-between items-end"><span className="text-sm text-slate-600 font-bold">Custo Fixo / Prato</span><span className="font-bold text-lg text-red-600 bg-red-50 px-2 rounded">{formatCurrency(expense.cost_per_dish)}</span></div>
+                                    </div>
+                                    <div className="mt-4 pt-4 border-t border-slate-100 flex justify-end">
+                                        <button onClick={(e) => { e.stopPropagation(); confirmDelete('expenses', [expense.id]); }} className="text-slate-400 hover:text-red-500 text-xs font-bold flex items-center gap-1 transition-colors"><Trash2 size={14}/> Excluir Registro</button>
+                                    </div>
                                 </Card>
-                                {currentRecipe.type !== 'sub_recipe' && (<Card className="col-span-4 p-6"><InputGroup label="Tempo Operacional (min)"><div className="flex gap-2"><div className="flex-1 text-center"><StyledInput placeholder="Prep" className="text-center" type="number" value={currentRecipe.operational_prep} onChange={e => {setCurrentRecipe({...currentRecipe, operational_prep: Number(e.target.value)}); setHasUnsavedChanges(true);}}/><span className="text-[10px] text-slate-400 mt-1 block">PREP</span></div><div className="flex-1 text-center"><StyledInput placeholder="Cook" className="text-center" type="number" value={currentRecipe.operational_cook} onChange={e => {setCurrentRecipe({...currentRecipe, operational_cook: Number(e.target.value)}); setHasUnsavedChanges(true);}}/><span className="text-[10px] text-slate-400 mt-1 block">FOGO</span></div><div className="flex-1 text-center"><StyledInput placeholder="Plate" className="text-center" type="number" value={currentRecipe.operational_plating} onChange={e => {setCurrentRecipe({...currentRecipe, operational_plating: Number(e.target.value)}); setHasUnsavedChanges(true);}}/><span className="text-[10px] text-slate-400 mt-1 block">MONTAGEM</span></div></div></InputGroup></Card>)}
-                             </div>
-                             <Card className="col-span-12 shadow-sm border border-slate-200">
-                                 <div className="p-4 bg-slate-50 border-b border-slate-200 flex justify-between items-center shrink-0 sticky top-0 z-30"><h3 className="font-bold text-slate-700 flex items-center gap-2"><Layers size={18} className="text-slate-400"/> Composição</h3><div className="flex gap-2"><button onClick={() => { setCurrentRecipe({...currentRecipe, items: [...currentRecipe.items, { item_type: 'ingredient', ref_id: '', qty: 0, unit: 'kg' }]}); setHasUnsavedChanges(true); scrollToBottom(); }} className="text-xs bg-blue-50 text-blue-700 border border-blue-200 hover:bg-blue-100 px-3 py-2 rounded-lg flex items-center gap-1 font-bold transition-colors"><Plus size={14}/> Adicionar Insumo</button><button onClick={() => { setCurrentRecipe({...currentRecipe, items: [...currentRecipe.items, { item_type: 'sub_recipe', ref_id: '', qty: 0, unit: 'kg' }]}); setHasUnsavedChanges(true); scrollToBottom(); }} className="text-xs bg-orange-50 text-orange-700 border border-orange-200 hover:bg-orange-100 px-3 py-2 rounded-lg flex items-center gap-1 font-bold transition-colors"><Plus size={14}/> Adicionar Base</button></div></div>
-                                 <div className="flex-1 relative"><table className="w-full text-sm"><thead className="bg-slate-50 border-b border-slate-200 text-slate-500 sticky top-[61px] z-20 shadow-sm"><tr><th className="p-3 pl-6 text-left w-20 bg-slate-50">Tipo</th><th className="p-3 text-left w-[40%] bg-slate-50">Item</th><th className="p-3 w-24 bg-slate-50">Qtd</th><th className="p-3 w-20 text-center bg-slate-50">Un</th><th className="p-3 text-right bg-slate-50">Custo</th><th className="w-16 bg-slate-50"></th></tr></thead><tbody className="divide-y divide-slate-50">{currentRecipe.items.map((item, idx) => { let cost = 0, options: any[] = []; if(item.item_type === 'ingredient') { options = ingredients; const ing = ingredients.find(i => i.id === item.ref_id); if(ing) { const q = Number(item.qty) || 0; const c = Number(ing.cost_per_unit) || 0; cost = q * c; } } else { options = recipes.filter(r => r.type === 'sub_recipe' && r.id !== currentRecipe.id); const sub = options.find((o:any) => o.id === item.ref_id) as Recipe; if(sub) { const subCost = getRecipeCosts(sub).costPerPortion; const q = Number(item.qty) || 0; const c = Number(subCost) || 0; cost = q * c; } } const updateItem = (field: keyof RecipeItemDB, val: any) => { const newItems = [...currentRecipe.items]; newItems[idx] = { ...newItems[idx], [field]: val }; if(field === 'ref_id') { const found = options.find((o:any) => o.id === val); if(found) newItems[idx].unit = (found as any).unit; } setCurrentRecipe({...currentRecipe, items: newItems}); setHasUnsavedChanges(true); }; return (<tr key={idx} className="group hover:bg-slate-50/50"><td className="p-2 pl-6"><Badge color={item.item_type === 'ingredient' ? 'blue' : 'orange'}>{item.item_type === 'ingredient' ? 'INS' : 'BASE'}</Badge></td><td className="p-2"><StyledSelect value={item.ref_id} onChange={e => updateItem('ref_id', e.target.value)}><option value="">Selecione...</option>{options.map((o:any) => <option key={o.id} value={o.id}>{o.name}</option>)}</StyledSelect></td><td className="p-2"><StyledInput type="number" className="text-center font-medium" value={item.qty} onChange={e => updateItem('qty', Number(e.target.value))} /></td><td className="p-2 text-center text-slate-500 text-xs font-bold uppercase">{item.unit}</td><td className="p-2 text-right font-mono text-slate-700 font-medium">{formatCurrency(cost)}</td><td className="p-2 text-center"><button onClick={() => { const newItems = currentRecipe.items.filter((_, i) => i !== idx); setCurrentRecipe({...currentRecipe, items: newItems}); setHasUnsavedChanges(true); }} className="text-slate-300 hover:text-red-500 p-1.5 rounded-full hover:bg-red-50 transition-colors"><X size={16}/></button></td></tr>) })} {currentRecipe.items.length === 0 && <tr><td colSpan={6} className="p-12 text-center text-slate-400 italic">Nenhum item adicionado à receita.</td></tr>}</tbody></table></div>
-                             </Card>
-                             <div className="grid grid-cols-12 gap-6"><Card className="col-span-12 lg:col-span-7 p-6"><h3 className="font-bold text-slate-700 mb-4 flex items-center gap-2 border-b pb-2"><TrendingUp size={18}/> Custos Indiretos & Extras</h3><div className="grid grid-cols-2 gap-4 mb-4"><InputGroup label="Embalagem"><StyledInput type="number" value={currentRecipe.extra_packaging} onChange={e => {setCurrentRecipe({...currentRecipe, extra_packaging: Number(e.target.value)}); setHasUnsavedChanges(true);}} /></InputGroup><InputGroup label={currentRecipe.type === 'drink' ? 'Gelo/Guarnição' : 'Energia/Gás'}><StyledInput type="number" value={currentRecipe.type === 'drink' ? currentRecipe.extra_ice_garnish : currentRecipe.extra_utilities} onChange={e => {setCurrentRecipe({...currentRecipe, [currentRecipe.type === 'drink' ? 'extra_ice_garnish' : 'extra_utilities']: Number(e.target.value)}); setHasUnsavedChanges(true);}} /></InputGroup></div><div className="grid grid-cols-2 gap-4"><InputGroup label="Outros"><StyledInput type="number" value={currentRecipe.extra_other_direct} onChange={e => {setCurrentRecipe({...currentRecipe, extra_other_direct: Number(e.target.value)}); setHasUnsavedChanges(true);}} /></InputGroup><InputGroup label="Rateio Custo Fixo"><div className="space-y-2"><StyledInput className="border-amber-200 bg-amber-50 focus:ring-amber-500 font-bold text-amber-900 placeholder-amber-300" type="number" placeholder="0.00" value={currentRecipe.extra_fixed_cost} onChange={e => {setCurrentRecipe({...currentRecipe, extra_fixed_cost: Number(e.target.value)}); setHasUnsavedChanges(true);}} /><div className="relative group"><select className="w-full bg-white border border-slate-200 text-[11px] font-medium text-slate-500 rounded-lg py-1.5 pl-2 pr-6 appearance-none focus:ring-1 focus:ring-amber-500 outline-none cursor-pointer hover:border-amber-300 hover:text-amber-700 transition-colors" onChange={(e) => { const val = Number(e.target.value); if(val > 0) { setCurrentRecipe({...currentRecipe, extra_fixed_cost: val}); setHasUnsavedChanges(true); showToast('success', 'Rateio atualizado com base no histórico.'); } }} value=""><option value="" disabled>Carregar do Histórico...</option>{expenses.map(exp => (<option key={exp.id} value={exp.cost_per_dish}>{formatMonth(exp.month)}/{exp.year} ({formatCurrency(exp.cost_per_dish)}/un)</option>))}{expenses.length === 0 && <option disabled>Sem histórico disponível</option>}</select><div className="absolute right-2 top-2 pointer-events-none text-slate-300 group-hover:text-amber-500 transition-colors"><History size={12} /></div></div></div></InputGroup></div></Card><Card className="col-span-12 lg:col-span-5 flex flex-col overflow-hidden"><div className="bg-slate-50 p-3 border-b border-slate-200 font-bold text-sm text-slate-700">Modo de Preparo</div><textarea className="w-full h-full p-4 resize-none outline-none text-sm text-slate-700 leading-relaxed bg-white" placeholder="Descreva o passo a passo..." value={currentRecipe.instructions} onChange={e => {setCurrentRecipe({...currentRecipe, instructions: e.target.value}); setHasUnsavedChanges(true);}} /></Card></div>
-                             <Card className="p-6 mt-6 border-l-4 border-l-blue-500"><h3 className="font-bold text-slate-800 mb-4 flex items-center gap-2"><ClipboardList className="text-blue-500" size={20}/> Histórico de Produção</h3><div className="overflow-x-auto"><table className="w-full text-sm text-left"><thead className="bg-slate-50 text-slate-500 font-semibold border-b border-slate-200"><tr><th className="p-3">Data</th><th className="p-3 text-center">Tempo Real</th><th className="p-3 text-center">Rendimento Real</th><th className="p-3 text-right">Custo Real</th><th className="p-3 text-center">Variação</th></tr></thead><tbody className="divide-y divide-slate-100">{productionRuns.filter(p => p.recipe_id === currentRecipe.id).map(run => { const variance = Number(run.planned_cost) > 0 ? ((Number(run.actual_cost) - Number(run.planned_cost)) / Number(run.planned_cost)) * 100 : 0; return (<tr key={run.id} className="hover:bg-slate-50"><td className="p-3 text-slate-600">{formatDate(run.created_at)}</td><td className="p-3 text-center">{run.actual_time_minutes} min</td><td className="p-3 text-center">{run.actual_yield}</td><td className="p-3 text-right font-mono">{formatCurrency(run.actual_cost)}</td><td className="p-3 text-center"><span className={`px-2 py-0.5 rounded text-xs font-bold ${variance > 0 ? 'bg-red-100 text-red-700' : 'bg-emerald-100 text-emerald-700'}`}>{variance > 0 ? '+' : ''}{variance.toFixed(1)}%</span></td></tr>) })} {productionRuns.filter(p => p.recipe_id === currentRecipe.id).length === 0 && <tr><td colSpan={5} className="p-6 text-center text-slate-400 text-xs italic">Nenhum registro de produção encontrado para esta receita.</td></tr>}</tbody></table></div></Card>
-                        </div>
-                        <div className="w-[400px] bg-white border-l border-slate-200 flex flex-col z-10 shadow-xl shadow-slate-200/50">
-                             <div className="p-6 border-b border-slate-100 bg-slate-50/50"><h3 className="font-bold text-lg flex items-center gap-2 mb-1 text-slate-800"><DollarSign className="text-emerald-500"/> Precificação</h3><p className="text-xs text-slate-500">Análise financeira em tempo real.</p></div>
-                             <div className="flex-1 overflow-y-auto p-6 space-y-8">
-                                 {(() => {
-                                     const costs = getRecipeCosts(currentRecipe);
-                                     let suggested = 0; const targetDec = Number(currentRecipe.pricing_target)/100;
-                                     if(currentRecipe.pricing_method === 'margin') { 
-                                         const tax = Number(currentRecipe.taxes_pct) || 0; const fee = Number(currentRecipe.card_fee_pct) || 0; const div = 1 - (tax/100) - (fee/100) - targetDec; 
-                                         suggested = div > 0 ? costs.costPerPortion / div : 0; 
-                                     } else { suggested = costs.costPerPortion * (1 + targetDec); }
-                                     return (
-                                         <>{/* Pricing Panel Content */}
-                                            <div className="space-y-3 pb-6 border-b border-slate-100"><div className="flex justify-between items-center"><span className="text-sm text-slate-500 font-medium">Custo Produção Total</span> <span className="font-mono text-slate-700">{formatCurrency(costs.totalCost)}</span></div><div className="flex justify-between items-center p-3 bg-slate-50 rounded-lg border border-slate-100"><span className="text-xs font-bold uppercase text-slate-500">Custo / {currentRecipe.type === 'sub_recipe' ? currentRecipe.unit : 'Porção'}</span> <span className="font-bold text-lg text-slate-800">{formatCurrency(costs.costPerPortion)}</span></div></div>
-                                            {currentRecipe.type !== 'sub_recipe' && (<div className="space-y-6 animate-in fade-in slide-in-from-right-4 duration-500"><div><label className="text-xs font-bold text-slate-400 uppercase mb-2 block">Método de Precificação</label><div className="flex bg-slate-100 p-1 rounded-lg"><button onClick={() => {setCurrentRecipe({...currentRecipe, pricing_method: 'margin'}); setHasUnsavedChanges(true);}} className={`flex-1 text-xs py-2 rounded-md font-bold transition-all ${currentRecipe.pricing_method === 'margin' ? 'bg-white text-emerald-600 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}>Margem</button><button onClick={() => {setCurrentRecipe({...currentRecipe, pricing_method: 'markup'}); setHasUnsavedChanges(true);}} className={`flex-1 text-xs py-2 rounded-md font-bold transition-all ${currentRecipe.pricing_method === 'markup' ? 'bg-white text-emerald-600 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}>Markup</button></div></div><div className="flex gap-4"><div className="flex-1"><InputGroup label="Meta %"><StyledInput type="number" className="text-right font-bold" value={currentRecipe.pricing_target} onChange={e => {setCurrentRecipe({...currentRecipe, pricing_target: Number(e.target.value)}); setHasUnsavedChanges(true);}} /></InputGroup></div><div className="flex-1"><InputGroup label="Sugerido"><div className="w-full bg-slate-100 border border-slate-200 text-slate-500 text-sm rounded-lg px-3 py-2.5 text-right font-mono font-bold cursor-not-allowed">{formatCurrency(suggested)}</div></InputGroup></div></div><div className="pt-6 border-t border-slate-100"><label className="text-xs font-bold text-slate-900 uppercase flex items-center gap-2 mb-2">Preço de Venda <span className="text-[10px] font-normal text-slate-400 bg-slate-100 px-1.5 rounded">FINAL</span></label><div className="flex items-center gap-3 relative"><span className="absolute left-0 top-1 text-emerald-600 font-bold text-2xl">R$</span><input type="number" className="bg-transparent text-4xl font-black text-slate-900 w-full outline-none border-b-2 border-slate-200 focus:border-emerald-500 pl-8 transition-colors pb-1" placeholder="0.00" value={currentRecipe.final_price} onChange={e => {setCurrentRecipe({...currentRecipe, final_price: Number(e.target.value)}); setHasUnsavedChanges(true);}} /></div></div><div className="bg-slate-50 p-4 rounded-xl border border-slate-100 space-y-2"><div className="flex justify-between text-xs text-slate-500 items-center"><span>Impostos ({currentRecipe.taxes_pct}%)</span><input type="number" className="w-12 bg-white border rounded px-1 text-right text-xs" value={currentRecipe.taxes_pct} onChange={e => setCurrentRecipe({...currentRecipe, taxes_pct: Number(e.target.value)})}/></div><div className="flex justify-between text-xs text-slate-500 items-center"><span>Taxas Cartão ({currentRecipe.card_fee_pct}%)</span><input type="number" className="w-12 bg-white border rounded px-1 text-right text-xs" value={currentRecipe.card_fee_pct} onChange={e => setCurrentRecipe({...currentRecipe, card_fee_pct: Number(e.target.value)})}/></div><div className="pt-2 border-t border-slate-200 flex justify-between text-xs font-bold text-slate-700"><span>Receita Líquida</span><span>{formatCurrency(costs.price - costs.tax - (costs.price * (Number(currentRecipe.card_fee_pct)/100)))}</span></div></div>
-                                            <div className="bg-purple-50 p-4 rounded-xl border border-purple-100 space-y-3"><div className="flex items-center justify-between"><span className="text-xs font-bold text-purple-800 uppercase flex items-center gap-1"><Bike size={12}/> Simulação Delivery</span></div><div className="space-y-2"><div><label className="text-[10px] font-bold text-purple-600 mb-1 block">Plataforma</label><StyledSelect className="bg-white border-purple-200 text-xs py-1.5" value={currentRecipe.delivery_platform_id || ''} onChange={e => {setCurrentRecipe({...currentRecipe, delivery_platform_id: e.target.value || null}); setHasUnsavedChanges(true);}}><option value="">Nenhuma (Venda Balcão)</option>{deliveryPlatforms.map(p => <option key={p.id} value={p.id}>{p.name} ({p.percentage}%)</option>)}</StyledSelect></div><div className="grid grid-cols-2 gap-2"><div><label className="text-[10px] font-bold text-purple-600 mb-1 block">Taxa Extra (R$)</label><StyledInput className="bg-white border-purple-200 text-xs py-1.5" type="number" placeholder="0.00" value={currentRecipe.extra_delivery_fee || 0} onChange={e => {setCurrentRecipe({...currentRecipe, extra_delivery_fee: Number(e.target.value)}); setHasUnsavedChanges(true);}} /></div><div><label className="text-[10px] font-bold text-purple-600 mb-1 block text-right">Comissão Calc.</label><div className="text-right font-mono font-bold text-purple-900 text-sm pt-1.5">{formatCurrency(costs.platformFee)}</div></div></div></div></div>
-                                            <div className="bg-slate-50 p-4 rounded-xl border border-slate-100 space-y-2"><div className="flex justify-between items-center"><span className="text-xs font-bold text-slate-500 uppercase">CMV Teórico (Valor)</span><span className="text-sm font-bold text-slate-700">{formatCurrency(costs.costPerPortion)}</span></div><div className="flex justify-between items-center"><span className="text-xs font-bold text-slate-500 uppercase">CMV Teórico (%)</span><span className={`text-sm font-bold ${costs.cmvPct > 35 ? 'text-red-500' : 'text-emerald-600'}`}>{costs.cmvPct.toFixed(1)}%</span></div><div className="w-full bg-slate-200 h-1.5 rounded-full overflow-hidden mt-1"><div className={`h-full ${costs.cmvPct > 35 ? 'bg-red-500' : 'bg-emerald-500'}`} style={{width: `${Math.min(costs.cmvPct, 100)}%`}}></div></div></div>
-                                            <div className="space-y-4"><div className="flex justify-between items-end"><label className="text-xs font-bold text-slate-400 uppercase">Lucro Líquido</label><span className={`text-2xl font-bold ${costs.profit > 0 ? 'text-emerald-600' : 'text-red-500'}`}>{formatCurrency(costs.profit)}</span></div><div><div className="flex justify-between items-end mb-2"><label className="text-xs font-bold text-slate-400 uppercase">Margem Real</label><span className={`text-xl font-bold ${costs.margin >= 20 ? 'text-emerald-600' : costs.margin > 0 ? 'text-orange-500' : 'text-red-500'}`}>{costs.margin.toFixed(1)}%</span></div><div className="w-full bg-slate-100 h-3 rounded-full overflow-hidden shadow-inner"><div className={`h-full transition-all duration-500 ${costs.margin >= 20 ? 'bg-emerald-500' : costs.margin > 0 ? 'bg-orange-400' : 'bg-red-500'}`} style={{width: `${Math.min(Math.max(costs.margin, 0), 100)}%`}}></div></div><p className="text-[10px] text-slate-400 mt-1 text-center">Ideal: &gt; 25%</p></div></div></div>)}</>
-                                     )
-                                 })()}
-                             </div>
-                        </div>
+                            ))
+                        )}
                     </div>
+                    {/* Fixed Expenses Drawer/Form */}
+                    {activeExpenseId && (
+                        <div className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-sm flex justify-end">
+                            <div className="w-full max-w-2xl bg-white h-full shadow-2xl animate-in slide-in-from-right duration-300 flex flex-col">
+                                <div className="p-6 border-b border-slate-200 flex justify-between items-center bg-slate-50">
+                                    <h3 className="text-xl font-bold text-slate-800 flex items-center gap-2"><Edit2 size={20} className="text-emerald-500"/> {activeExpenseId === 'new' ? 'Nova Competência' : 'Editar Despesas'}</h3>
+                                    <button onClick={() => setActiveExpenseId(null)} className="p-2 hover:bg-slate-200 rounded-full transition-colors"><X size={24} className="text-slate-500"/></button>
+                                </div>
+                                <div className="flex-1 overflow-y-auto p-8 space-y-8">
+                                    <div className="grid grid-cols-3 gap-4">
+                                        <InputGroup label="Mês"><StyledSelect value={expenseForm.month} onChange={e => setExpenseForm({...expenseForm, month: e.target.value})}>{Array.from({length:12},(_,i)=>i+1).map(m=><option key={m} value={m}>{formatMonth(m)}</option>)}</StyledSelect></InputGroup>
+                                        <InputGroup label="Ano"><StyledInput type="number" value={expenseForm.year} onChange={e => setExpenseForm({...expenseForm, year: e.target.value})}/></InputGroup>
+                                        <InputGroup label="Pratos Vendidos (Qtd)"><StyledInput type="number" value={expenseForm.dishes} onChange={e => setExpenseForm({...expenseForm, dishes: e.target.value})}/></InputGroup>
+                                    </div>
+                                    <div className="bg-blue-50 p-4 rounded-xl border border-blue-100">
+                                        <div className="flex justify-between items-center mb-2"><h4 className="font-bold text-blue-900">Detalhamento de Contas</h4><div className="text-right"><span className="text-xs text-blue-600 font-bold uppercase block">Total Mensal</span><span className="text-2xl font-bold text-blue-800">{formatCurrency(expenseForm.items.reduce((acc, i) => acc + (Number(i.amount)||0), 0))}</span></div></div>
+                                        <div className="space-y-3 mt-4">
+                                            {expenseForm.items.map((item, idx) => (
+                                                <div key={idx} className="flex gap-3 items-center">
+                                                    <div className="flex-1 text-sm font-medium text-slate-700 bg-white px-3 py-2 rounded border border-blue-200/50">{categories.find(c => c.id === item.category_id)?.name}</div>
+                                                    <div className="w-32"><StyledInput type="number" placeholder="0.00" value={item.amount} onChange={e => { const newItems = [...expenseForm.items]; newItems[idx].amount = e.target.value; setExpenseForm({...expenseForm, items: newItems}); }} className="text-right font-mono"/></div>
+                                                </div>
+                                            ))}
+                                        </div>
+                                    </div>
+                                    <div>
+                                        <label className="text-xs font-bold text-slate-500 uppercase mb-2 block">Adicionar Nova Categoria de Despesa</label>
+                                        <div className="flex gap-2">
+                                            <StyledInput placeholder="Nome da categoria..." value={quickCatName} onChange={e => setQuickCatName(e.target.value)}/>
+                                            <button onClick={handleAddQuickCategory} className="bg-slate-800 text-white px-4 rounded-lg font-bold hover:bg-slate-700">Add</button>
+                                        </div>
+                                    </div>
+                                </div>
+                                <div className="p-6 border-t border-slate-200 bg-slate-50 flex justify-end gap-3">
+                                    <button onClick={() => setActiveExpenseId(null)} className="px-6 py-3 rounded-xl font-bold text-slate-500 hover:bg-slate-200 transition-colors">Cancelar</button>
+                                    <button onClick={handleSaveExpense} className="bg-emerald-600 hover:bg-emerald-700 text-white px-8 py-3 rounded-xl font-bold shadow-lg shadow-emerald-600/20 flex items-center gap-2"><Save size={18}/> Salvar Competência</button>
+                                </div>
+                            </div>
+                        </div>
+                    )}
                 </div>
             )}
-
-            {showUpdateConfirm && (
-                <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm flex items-center justify-center z-[9999]">
-                    <div className="bg-white p-8 rounded-2xl shadow-2xl w-full max-w-md border border-slate-100 animate-in zoom-in-95 duration-200">
-                        <div className="bg-blue-100 w-16 h-16 rounded-full flex items-center justify-center mx-auto mb-6"><RefreshCw className="text-blue-600" size={32}/></div>
-                        <h3 className="font-bold text-xl text-slate-900 mb-2 text-center">Finalizar e Atualizar?</h3>
-                        <p className="text-sm text-slate-500 mb-6 text-center">Você deseja atualizar a Ficha Técnica original com os indicadores reais desta produção?</p>
-                        <div className="bg-slate-50 rounded-lg p-4 mb-6 text-sm"><div className="flex justify-between mb-2"><span>Rendimento:</span> <span className="font-bold text-slate-800">{currentProduction.planned_yield} <ArrowRight size={12} className="inline text-slate-400"/> {currentProduction.actual_yield}</span></div><div className="flex justify-between"><span>Tempo Total:</span> <span className="font-bold text-slate-800">{currentProduction.planned_time_minutes} min <ArrowRight size={12} className="inline text-slate-400"/> {(currentProduction.actual_prep||0)+(currentProduction.actual_cook||0)+(currentProduction.actual_plating)||0} min</span></div></div>
-                        <div className="flex flex-col gap-3"><button onClick={() => saveProductionRun(true)} className="w-full bg-blue-600 hover:bg-blue-700 text-white py-3 rounded-xl font-bold shadow-lg shadow-blue-600/20 transition-all">Sim, Atualizar Ficha Técnica</button><button onClick={() => saveProductionRun(false)} className="w-full bg-white border border-slate-200 text-slate-700 hover:bg-slate-50 py-3 rounded-xl font-medium transition-all">Não, Apenas Salvar Histórico</button><button onClick={() => setShowUpdateConfirm(false)} className="text-xs text-slate-400 hover:text-slate-600 mt-2">Cancelar</button></div>
+            
+            {/* VIEW: CATEGORIES */}
+            {view === 'categories' && (
+                <div className="p-6 md:p-10 w-full max-w-5xl mx-auto">
+                    <h1 className="text-3xl font-bold text-slate-900 flex items-center gap-3 mb-8"><Settings className="text-slate-600" size={32}/> Configurações</h1>
+                    <div className="flex gap-6 border-b border-slate-200 mb-8">
+                        <button onClick={() => setCatTab('recipe')} className={`pb-4 px-2 font-bold text-sm transition-colors relative ${catTab === 'recipe' ? 'text-emerald-600' : 'text-slate-400 hover:text-slate-600'}`}>Categorias de Receita {catTab === 'recipe' && <div className="absolute bottom-0 left-0 w-full h-0.5 bg-emerald-600"></div>}</button>
+                        <button onClick={() => setCatTab('expense')} className={`pb-4 px-2 font-bold text-sm transition-colors relative ${catTab === 'expense' ? 'text-emerald-600' : 'text-slate-400 hover:text-slate-600'}`}>Categorias de Despesa {catTab === 'expense' && <div className="absolute bottom-0 left-0 w-full h-0.5 bg-emerald-600"></div>}</button>
+                        <button onClick={() => setCatTab('platform')} className={`pb-4 px-2 font-bold text-sm transition-colors relative ${catTab === 'platform' ? 'text-emerald-600' : 'text-slate-400 hover:text-slate-600'}`}>Plataformas de Delivery {catTab === 'platform' && <div className="absolute bottom-0 left-0 w-full h-0.5 bg-emerald-600"></div>}</button>
                     </div>
+                    
+                    {catTab !== 'platform' ? (
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+                            <Card className="p-6 h-fit">
+                                <h3 className="font-bold text-slate-800 mb-4">Adicionar Nova</h3>
+                                <div className="flex gap-2">
+                                    <StyledInput placeholder="Nome da categoria..." value={newCatInput} onChange={e => setNewCatInput(e.target.value)} />
+                                    <button onClick={async () => {
+                                        if(!newCatInput.trim()) return;
+                                        const { data, error } = await supabase.from('categories').insert({ user_id: session.user.id, name: newCatInput, type: catTab }).select().single();
+                                        if(data) { setCategories([...categories, data].sort((a,b)=>a.name.localeCompare(b.name))); setNewCatInput(""); showToast('success', 'Categoria adicionada!'); }
+                                    }} className="bg-emerald-600 text-white px-4 rounded-lg font-bold hover:bg-emerald-700">Add</button>
+                                </div>
+                            </Card>
+                            <Card className="p-6">
+                                <h3 className="font-bold text-slate-800 mb-4">Categorias Existentes</h3>
+                                <div className="space-y-2 max-h-[400px] overflow-y-auto pr-2">
+                                    {categories.filter(c => c.type === catTab).map(cat => (
+                                        <div key={cat.id} className="flex justify-between items-center p-3 bg-slate-50 rounded-lg border border-slate-100">
+                                            <span className="font-medium text-slate-700">{cat.name}</span>
+                                            <button onClick={() => confirmDelete('categories', [cat.id])} className="text-slate-400 hover:text-red-500 p-1"><Trash2 size={16}/></button>
+                                        </div>
+                                    ))}
+                                </div>
+                            </Card>
+                        </div>
+                    ) : (
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+                            <Card className="p-6 h-fit">
+                                <h3 className="font-bold text-slate-800 mb-4">Nova Plataforma</h3>
+                                <div className="space-y-4">
+                                    <InputGroup label="Nome da Plataforma"><StyledInput placeholder="Ex: iFood, Rappi..." value={platformForm.name} onChange={e => setPlatformForm({...platformForm, name: e.target.value})}/></InputGroup>
+                                    <InputGroup label="Taxa (%)"><StyledInput type="number" placeholder="Ex: 12, 23, 27..." value={platformForm.percentage} onChange={e => setPlatformForm({...platformForm, percentage: e.target.value})}/></InputGroup>
+                                    <button onClick={handleSavePlatform} disabled={!platformForm.name} className="w-full bg-purple-600 hover:bg-purple-700 text-white py-2.5 rounded-lg font-bold shadow-lg shadow-purple-600/20 transition-all">Salvar Plataforma</button>
+                                </div>
+                            </Card>
+                            <Card className="p-6">
+                                <h3 className="font-bold text-slate-800 mb-4">Plataformas Cadastradas</h3>
+                                <div className="space-y-3">
+                                    {deliveryPlatforms.map(plat => (
+                                        <div key={plat.id} className="flex justify-between items-center p-4 bg-white border border-slate-200 rounded-xl shadow-sm">
+                                            <div><div className="font-bold text-slate-800">{plat.name}</div><div className="text-xs text-slate-500 font-bold bg-slate-100 px-2 py-0.5 rounded w-fit mt-1">Taxa: {plat.percentage}%</div></div>
+                                            <button onClick={() => confirmDelete('delivery_platforms', [plat.id])} className="text-slate-400 hover:text-red-500 p-2 hover:bg-red-50 rounded-full transition-colors"><Trash2 size={18}/></button>
+                                        </div>
+                                    ))}
+                                    {deliveryPlatforms.length === 0 && <div className="text-center py-8 text-slate-400">Nenhuma plataforma cadastrada.</div>}
+                                </div>
+                            </Card>
+                        </div>
+                    )}
                 </div>
             )}
-            {showAddProdItemModal && (<div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm flex items-center justify-center z-[9999]"><div className="bg-white p-6 rounded-2xl shadow-2xl w-full max-w-sm border border-slate-100"><div className="flex justify-between items-center mb-4"><h3 className="font-bold text-lg text-slate-800">Adicionar Insumo Extra</h3><button onClick={() => setShowAddProdItemModal(false)}><X size={20} className="text-slate-400 hover:text-slate-600"/></button></div><div className="mb-4"><label className="text-xs font-bold text-slate-500 uppercase mb-2 block">Selecione o Insumo</label><StyledSelect value={selectedExtraIngredientId} onChange={e => setSelectedExtraIngredientId(e.target.value)}><option value="">Selecione...</option>{ingredients.map(ing => <option key={ing.id} value={ing.id}>{ing.name}</option>)}</StyledSelect></div><button onClick={addExtraProdItem} disabled={!selectedExtraIngredientId} className="w-full bg-blue-600 hover:bg-blue-700 text-white py-2 rounded-lg font-bold disabled:opacity-50 transition-all">Adicionar à Produção</button></div></div>)}
-            {view === 'production-wizard' && (<div className="absolute inset-0 bg-slate-50 z-50 flex flex-col"><div className="bg-white border-b border-slate-200 p-6 flex justify-between items-center shadow-sm"><h3 className="text-xl font-bold text-slate-900 flex items-center gap-2">{viewingProduction ? <Eye className="text-blue-500"/> : <ClipboardCheck className="text-emerald-500"/>} {viewingProduction ? 'Detalhes da Produção' : 'Nova Produção'}</h3><div className="flex gap-2">{!viewingProduction && prodWizardStep > 1 && <button onClick={() => setProdWizardStep(prodWizardStep-1)} className="text-slate-500 hover:bg-slate-100 px-4 py-2 rounded-lg">Voltar</button>}<button onClick={() => { setView('production'); setViewingProduction(null); }} className="text-slate-500 hover:text-red-500 px-4 py-2 hover:bg-slate-100 rounded-lg">Cancelar</button></div></div><div className="flex-1 overflow-y-auto p-8 max-w-5xl mx-auto w-full">{prodWizardStep === 1 && !viewingProduction && (<div className="space-y-6"><h2 className="text-2xl font-bold text-slate-800 text-center mb-8">O que vamos produzir hoje?</h2><div className="max-w-xl mx-auto relative"><Search className="absolute left-4 top-3.5 text-slate-400" size={20}/><input className="w-full pl-12 pr-4 py-3 bg-white border border-slate-300 rounded-xl shadow-sm focus:ring-2 focus:ring-emerald-500 outline-none text-lg" placeholder="Buscar receita ou base..." autoFocus onChange={(e) => setProductionSearch(e.target.value)}/></div><div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-8">{recipes.filter(r => r.name.toLowerCase().includes(productionSearch.toLowerCase()) && r.status === 'active').map(r => (<button key={r.id} onClick={() => initProductionFromRecipe(r.id!)} className="bg-white p-4 rounded-xl border border-slate-200 hover:border-emerald-500 hover:shadow-md transition-all text-left group"><div className="font-bold text-lg text-slate-800 group-hover:text-emerald-700">{r.name}</div><div className="text-sm text-slate-500">{r.category} • Rendimento: {r.portions} {r.type === 'sub_recipe' ? r.unit : 'un'}</div></button>))}</div></div>)}{(prodWizardStep === 2 || viewingProduction) && (<div className="space-y-8 animate-in slide-in-from-right-8 duration-300"><div className="grid grid-cols-3 gap-6"><Card className="p-5 border-l-4 border-l-emerald-500"><div className="text-xs font-bold text-slate-500 uppercase mb-1">Receita Base</div><div className="text-xl font-bold text-slate-800">{viewingProduction ? viewingProduction.recipe_name : currentProduction.recipe_name}</div></Card><Card className="p-5"><div className="text-xs font-bold text-slate-500 uppercase mb-1">Rendimento Planejado</div><div className="text-xl font-bold text-slate-800">{viewingProduction ? viewingProduction.planned_yield : currentProduction.planned_yield} un</div></Card><Card className="p-5"><div className="text-xs font-bold text-slate-500 uppercase mb-1">Custo Planejado</div><div className="text-xl font-bold text-slate-800">{formatCurrency(viewingProduction ? viewingProduction.planned_cost : currentProduction.planned_cost)}</div></Card></div><div className="grid grid-cols-1 lg:grid-cols-3 gap-8"><div className="lg:col-span-1 space-y-6"><Card className="p-6"><h3 className="font-bold text-slate-800 mb-4 flex items-center gap-2"><Timer className="text-emerald-500"/> Tempos Reais (min)</h3><div className="space-y-4"><div><label className="text-xs font-bold text-slate-500 uppercase">Prep (Mise en place)</label><StyledInput type="number" disabled={!!viewingProduction} value={viewingProduction ? 0 : currentProduction.actual_prep} onChange={e => !viewingProduction && setCurrentProduction({...currentProduction, actual_prep: Number(e.target.value)})} /></div><div><label className="text-xs font-bold text-slate-500 uppercase">Fogo/Cocção</label><StyledInput type="number" disabled={!!viewingProduction} value={viewingProduction ? 0 : currentProduction.actual_cook} onChange={e => !viewingProduction && setCurrentProduction({...currentProduction, actual_cook: Number(e.target.value)})} /></div><div><label className="text-xs font-bold text-slate-500 uppercase">Montagem/Finalização</label><StyledInput type="number" disabled={!!viewingProduction} value={viewingProduction ? 0 : currentProduction.actual_plating} onChange={e => !viewingProduction && setCurrentProduction({...currentProduction, actual_plating: Number(e.target.value)})} /></div><div className="pt-4 border-t border-slate-100 flex justify-between items-center"><span className="font-bold text-slate-700">Tempo Total</span> <span className="text-xl font-bold text-emerald-600">{viewingProduction ? viewingProduction.actual_time_minutes : ((currentProduction.actual_prep || 0) + (currentProduction.actual_cook || 0) + (currentProduction.actual_plating || 0))} min</span></div></div></Card><Card className="p-6 bg-emerald-50 border-emerald-100"><h3 className="font-bold text-emerald-800 mb-4 flex items-center gap-2"><Scale className="text-emerald-600"/> Rendimento Final</h3><div className="flex items-center gap-2"><input type="number" disabled={!!viewingProduction} className="w-full text-3xl font-bold bg-white border border-emerald-200 rounded-lg p-3 text-center text-emerald-900 outline-none focus:ring-2 focus:ring-emerald-500" placeholder="0" value={viewingProduction ? viewingProduction.actual_yield : currentProduction.actual_yield} onChange={e => !viewingProduction && setCurrentProduction({...currentProduction, actual_yield: Number(e.target.value)})} /><span className="text-sm font-bold text-emerald-600 uppercase">Unidades</span></div></Card></div><div className="lg:col-span-2 space-y-6"><Card className="p-6"><div className="flex justify-between items-center mb-4"><h3 className="font-bold text-slate-800 flex items-center gap-2"><List className="text-blue-500"/> Baixa de Insumos</h3>{!viewingProduction && <button onClick={() => setShowAddProdItemModal(true)} className="text-xs bg-slate-100 hover:bg-slate-200 px-3 py-1.5 rounded text-slate-600 font-bold flex items-center gap-1 transition-colors"><Plus size={14}/> Add Extra</button>}</div><div className="overflow-x-auto"><table className="w-full text-sm"><thead className="bg-slate-50 text-slate-500 text-xs font-bold uppercase"><tr><th className="p-3 text-left">Item</th><th className="p-3 text-center">Plan</th><th className="p-3 text-center w-32">Real Utilizado</th><th className="p-3 text-right">Custo</th></tr></thead><tbody className="divide-y divide-slate-100">{(viewingProduction ? viewingProduction.items : currentProduction.items || []).map((item, idx) => (<tr key={idx}><td className="p-3 font-medium text-slate-700">{item.item_name}</td><td className="p-3 text-center text-slate-500">{item.planned_qty} {item.unit}</td><td className="p-3"><div className="relative"><input type="number" disabled={!!viewingProduction} className={`w-full text-center border rounded py-1 px-2 font-bold outline-none focus:ring-2 ${item.actual_qty > item.planned_qty ? 'border-red-300 text-red-600 bg-red-50' : 'border-slate-200 text-slate-700'}`} value={item.actual_qty} onChange={e => { if(viewingProduction) return; const newItems = [...currentProduction.items!]; newItems[idx].actual_qty = Number(e.target.value); setCurrentProduction({...currentProduction, items: newItems}); }} /><span className="absolute right-2 top-1.5 text-xs text-slate-400 pointer-events-none">{item.unit}</span></div></td><td className="p-3 text-right font-mono text-slate-700">{formatCurrency(Number(item.actual_qty) * Number(item.unit_cost))}</td></tr>))}</tbody></table></div></Card>{!viewingProduction && (<Card className="p-6 border-l-4 border-l-purple-500"><div className="flex justify-between items-center mb-4"><h3 className="font-bold text-slate-800 flex items-center gap-2"><List className="text-purple-500"/> Sequência Operacional</h3><button onClick={addOpStep} className="text-xs bg-purple-50 text-purple-700 hover:bg-purple-100 border border-purple-200 px-3 py-1.5 rounded-lg font-bold flex items-center gap-1 transition-colors"><Plus size={14}/> Nova Ação</button></div><div className="space-y-3">{currentProduction.steps.length === 0 && (<div className="text-center py-8 text-slate-400 text-sm border-2 border-dashed border-slate-100 rounded-xl bg-slate-50/50"><Clock size={24} className="mx-auto mb-2 opacity-20"/><p>Nenhuma etapa registrada.</p><p className="text-xs mt-1">Detalhe o tempo gasto em cada processo.</p></div>)}</div>{currentProduction.steps.length > 0 && (<div className="mt-4 pt-4 border-t border-slate-100 flex justify-end gap-4 text-xs font-bold text-slate-500"><span>Prep: {currentProduction.steps.filter(s => s.category === 'prep').reduce((acc, step) => acc + (Number(step.time_minutes) || 0), 0)}m</span><span>Fogo: {currentProduction.steps.filter(s => s.category === 'cook').reduce((acc, step) => acc + (Number(step.time_minutes) || 0), 0)}m</span><span>Montagem: {currentProduction.steps.filter(s => s.category === 'plating').reduce((acc, step) => acc + (Number(step.time_minutes) || 0), 0)}m</span></div>)}<div className="space-y-3 mt-4">{currentProduction.steps.map((step, idx) => (<div key={step.id} className="flex gap-3 items-center p-3 bg-slate-50 rounded-lg border border-slate-100 group hover:border-purple-200 transition-colors"><div className="w-32 shrink-0"><StyledSelect className="py-2 text-xs font-bold bg-white" value={step.category} onChange={(e) => updateOpStep(step.id, 'category', e.target.value)}><option value="prep">Mise en place</option><option value="cook">Cocção / Fogo</option><option value="plating">Montagem</option></StyledSelect></div><div className="flex-1"><input className="w-full bg-transparent border-b border-transparent focus:border-purple-300 outline-none text-sm text-slate-700 placeholder:text-slate-400 py-1" placeholder="Descreva a ação realizada..." value={step.description} onChange={(e) => updateOpStep(step.id, 'description', e.target.value)} autoFocus={!step.description} /></div><div className="w-20 relative shrink-0"><input type="number" className="w-full bg-white border border-slate-200 rounded-lg py-1.5 pl-2 pr-6 text-sm outline-none focus:ring-2 focus:ring-purple-500 text-center font-bold text-slate-700" placeholder="0" value={step.time_minutes || ''} onChange={(e) => updateOpStep(step.id, 'time_minutes', Number(e.target.value))} /><span className="absolute right-2 top-1.5 text-[10px] text-slate-400 pointer-events-none font-bold">min</span></div><button onClick={() => { const newSteps = currentProduction.steps.filter(s => s.id !== step.id); const newPrep = newSteps.filter(s => s.category === 'prep').reduce((acc, step) => acc + (Number(step.time_minutes) || 0), 0); const newCook = newSteps.filter(s => s.category === 'cook').reduce((acc, step) => acc + (Number(step.time_minutes) || 0), 0); const newPlate = newSteps.filter(s => s.category === 'plating').reduce((acc, step) => acc + (Number(step.time_minutes) || 0), 0); setCurrentProduction(prev => ({ ...prev, steps: newSteps, actual_prep: newPrep, actual_cook: newCook, actual_plating: newPlate, actual_time_minutes: newPrep + newCook + newPlate })); }} className="p-2 text-slate-300 hover:text-red-500 hover:bg-red-50 rounded-lg transition-colors"><Trash2 size={16}/></button></div>))}</div></Card>)}<Card className="p-6"><h3 className="font-bold text-slate-800 mb-4 flex items-center gap-2"><FileText className="text-slate-400"/> Observações / Ocorrências</h3><textarea className="w-full h-32 border border-slate-200 rounded-lg p-3 text-sm focus:ring-2 focus:ring-emerald-500 outline-none resize-none" placeholder="Descreva problemas na produção, quebras, ou detalhes do processo..." disabled={!!viewingProduction} value={viewingProduction ? viewingProduction.notes : currentProduction.notes} onChange={e => !viewingProduction && setCurrentProduction({...currentProduction, notes: e.target.value})} /></Card>{!viewingProduction && (<div className="flex justify-end pt-4"><button onClick={initiateProductionSave} className="bg-emerald-600 hover:bg-emerald-700 text-white px-8 py-3 rounded-xl font-bold shadow-lg shadow-emerald-600/20 flex items-center gap-2 transform active:scale-95 transition-all text-lg"><Save size={20}/> Finalizar Produção</button></div>)}</div></div></div></div>)}
-            {showImportModal && ( <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm flex items-center justify-center z-[100]"><div className={`bg-white p-8 rounded-2xl shadow-2xl w-full border border-slate-100 transform transition-all scale-100 ${isImportReviewStep ? 'max-w-4xl' : 'max-w-lg'}`}><div className="flex justify-between mb-6 items-center"><h3 className="font-bold text-xl text-slate-800 flex items-center gap-2"><Download className="text-blue-500"/> {isImportReviewStep ? 'Revisar Dados' : 'Importar Dados'}</h3><button onClick={() => setShowImportModal(false)} className="text-slate-400 hover:text-slate-600"><X/></button></div>{!isImportReviewStep ? (<><div className="mb-4 text-sm text-slate-500 bg-blue-50 p-4 rounded-lg border border-blue-100">Cole seus dados do Excel/CSV abaixo. O sistema identificará automaticamente:<br/><span className="font-mono text-xs text-blue-700 mt-1 block">Nome | Preço | Embalagem | Rendimento</span><span className="text-xs text-slate-400 mt-1 block">Ex: Acafrao | R$ 30,00 | 1 kg | 100%</span></div><textarea className="w-full h-40 border border-slate-300 rounded-lg p-3 text-xs font-mono mb-6 focus:ring-2 focus:ring-blue-500 outline-none" placeholder="Cole seus dados aqui..." value={importText} onChange={e => setImportText(e.target.value)}></textarea><button onClick={handlePreviewImport} disabled={!importText.trim()} className="w-full bg-blue-600 hover:bg-blue-700 text-white py-3 rounded-lg font-bold shadow-lg shadow-blue-600/20 transition-all flex justify-center items-center gap-2">Processar Texto</button></>) : (<><div className="max-h-[500px] overflow-y-auto mb-6 border rounded-lg"><table className="w-full text-sm text-left"><thead className="bg-slate-50 text-slate-500 font-semibold text-xs sticky top-0"><tr><th className="p-3">Nome</th><th className="p-3">Preço</th><th className="p-3">Emb.</th><th className="p-3">Rend.</th><th className="p-3">Status</th></tr></thead><tbody className="divide-y divide-slate-100">{importPreviewData.map((item, idx) => (<tr key={idx} className={item.isValid ? 'bg-white' : 'bg-red-50'}><td className="p-3 font-medium">{item.name}</td><td className="p-3">{formatCurrency(item.price)}</td><td className="p-3">{item.package_qty} {item.unit}</td><td className="p-3">{item.yield_factor}%</td><td className="p-3">{item.isValid ? <span className="text-emerald-600 text-xs font-bold flex items-center gap-1"><CheckCircle size={14}/> Válido</span> : <span className="text-red-600 text-xs font-bold flex items-center gap-1"><AlertCircle size={14}/> {item.errorMsg}</span>}</td></tr>))}</tbody></table></div><div className="flex justify-between items-center bg-slate-50 p-4 rounded-lg"><div className="text-sm text-slate-600"><span className="font-bold text-slate-800">{importPreviewData.filter(i => i.isValid).length}</span> itens válidos prontos para importar.</div><div className="flex gap-3"><button onClick={() => setIsImportReviewStep(false)} className="text-slate-600 px-4 py-2 hover:bg-slate-200 rounded-lg">Voltar</button><button onClick={executeImport} disabled={isProcessingImport || importPreviewData.filter(i => i.isValid).length === 0} className="bg-emerald-600 hover:bg-emerald-700 text-white px-6 py-2 rounded-lg font-bold shadow-lg flex items-center gap-2">{isProcessingImport && <Loader2 className="animate-spin" size={18}/>} Confirmar Importação</button></div></div></>)}</div></div> )}
-            {deleteModal.open && (<div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm flex items-center justify-center z-[150]"><div className="bg-white p-8 rounded-2xl shadow-2xl w-full max-w-sm text-center border border-slate-100 animate-in zoom-in-95 duration-200"><div className="bg-red-100 w-16 h-16 rounded-full flex items-center justify-center mx-auto mb-6"><Trash2 className="text-red-600" size={32}/></div><h3 className="font-bold text-xl text-slate-900 mb-2">{deleteModal.title}</h3><p className="text-sm text-slate-500 mb-8 leading-relaxed">{deleteModal.message}</p><div className="flex flex-col gap-3"><button onClick={executeDelete} disabled={isDeleting} className="w-full bg-red-600 hover:bg-red-700 text-white py-3 rounded-xl font-bold shadow-lg shadow-red-600/20 transition-all flex justify-center items-center gap-2">{isDeleting ? <Loader2 className="animate-spin" size={20}/> : 'Sim, Excluir'}</button><button onClick={() => setDeleteModal(prev => ({ ...prev, open: false }))} disabled={isDeleting} className="w-full bg-white border border-slate-200 text-slate-700 hover:bg-slate-50 py-3 rounded-xl font-medium transition-all">Cancelar</button></div></div></div>)}
-            {showUnsavedModal && (<div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm flex items-center justify-center z-[100]"><div className="bg-white p-8 rounded-2xl shadow-2xl w-full max-w-sm text-center border border-slate-100"><div className="bg-amber-100 w-16 h-16 rounded-full flex items-center justify-center mx-auto mb-6"><AlertTriangle className="text-amber-500" size={32}/></div><h3 className="font-bold text-xl text-slate-800 mb-2">Alterações não salvas</h3><p className="text-sm text-slate-500 mb-8">Você tem alterações pendentes. Se sair agora, perderá o progresso não salvo.</p><div className="flex flex-col gap-3"><button onClick={saveRecipe} className="bg-emerald-600 hover:bg-emerald-700 text-white py-3 rounded-xl font-bold shadow-lg shadow-emerald-600/20 transition-all">Salvar e Sair</button><button onClick={() => { setHasUnsavedChanges(false); setShowUnsavedModal(false); if(pendingView) { setView(pendingView); setPendingView(null); } else setView('recipes'); }} className="bg-white border border-slate-200 text-slate-600 hover:bg-slate-50 py-3 rounded-xl font-medium transition-all">Descartar Alterações</button></div></div></div>)}
+            
             </div>
         </main>
+        
+        {/* --- MODALS --- */}
+        
+        {/* ADD PRODUCTION ITEM MODAL */}
+        {showAddProdItemModal && (
+            <div className="fixed inset-0 z-[60] bg-slate-900/50 backdrop-blur-sm flex items-center justify-center p-4">
+                <div className="bg-white rounded-xl shadow-2xl p-6 w-full max-w-md animate-in zoom-in-95 duration-200">
+                    <h3 className="text-lg font-bold text-slate-800 mb-4">Adicionar Item Extra</h3>
+                    <div className="space-y-4">
+                        <InputGroup label="Selecione o Insumo">
+                            <StyledSelect value={selectedExtraIngredientId} onChange={e => setSelectedExtraIngredientId(e.target.value)}>
+                                <option value="">Selecione...</option>
+                                {ingredients.map(i => <option key={i.id} value={i.id}>{i.name}</option>)}
+                            </StyledSelect>
+                        </InputGroup>
+                        <div className="flex gap-3 justify-end mt-6">
+                            <button onClick={() => setShowAddProdItemModal(false)} className="px-4 py-2 text-slate-500 hover:bg-slate-100 rounded-lg">Cancelar</button>
+                            <button onClick={addExtraProdItem} disabled={!selectedExtraIngredientId} className="bg-emerald-600 hover:bg-emerald-700 text-white px-4 py-2 rounded-lg font-bold disabled:opacity-50">Adicionar</button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        )}
+
+        {/* UPDATE CONFIRM MODAL (PRODUCTION) */}
+        {showUpdateConfirm && (
+            <div className="fixed inset-0 z-[60] bg-slate-900/50 backdrop-blur-sm flex items-center justify-center p-4">
+                <div className="bg-white rounded-xl shadow-2xl p-6 w-full max-w-md animate-in zoom-in-95 duration-200">
+                    <div className="flex flex-col items-center text-center mb-6">
+                        <div className="bg-blue-100 p-3 rounded-full mb-4 text-blue-600"><RefreshCw size={32}/></div>
+                        <h3 className="text-xl font-bold text-slate-800">Atualizar Ficha Técnica?</h3>
+                        <p className="text-slate-500 text-sm mt-2">Deseja atualizar os tempos operacionais e rendimento padrão da receita original com base nestes dados reais?</p>
+                    </div>
+                    <div className="space-y-3">
+                        <button onClick={() => saveProductionRun(true)} className="w-full bg-blue-600 hover:bg-blue-700 text-white py-3 rounded-xl font-bold shadow-lg shadow-blue-600/20">Sim, Atualizar Ficha e Salvar</button>
+                        <button onClick={() => saveProductionRun(false)} className="w-full bg-white border border-slate-200 hover:bg-slate-50 text-slate-700 py-3 rounded-xl font-bold">Não, Apenas Salvar Histórico</button>
+                    </div>
+                    <button onClick={() => setShowUpdateConfirm(false)} className="w-full mt-4 text-slate-400 text-xs hover:underline">Cancelar</button>
+                </div>
+            </div>
+        )}
+
+        {/* DELETE CONFIRMATION MODAL */}
+        {deleteModal.open && (
+            <div className="fixed inset-0 z-[60] bg-slate-900/50 backdrop-blur-sm flex items-center justify-center p-4">
+                <div className="bg-white rounded-xl shadow-2xl p-6 w-full max-w-sm animate-in zoom-in-95 duration-200 border-l-4 border-red-500">
+                    <h3 className="text-lg font-bold text-slate-800 mb-2">{deleteModal.title}</h3>
+                    <p className="text-slate-500 text-sm mb-6">{deleteModal.message}</p>
+                    <div className="flex gap-3 justify-end">
+                        <button onClick={() => setDeleteModal({...deleteModal, open: false})} className="px-4 py-2 text-slate-600 hover:bg-slate-100 rounded-lg font-medium">Cancelar</button>
+                        <button onClick={executeDelete} disabled={isDeleting} className="bg-red-600 hover:bg-red-700 text-white px-4 py-2 rounded-lg font-bold flex items-center gap-2">{isDeleting && <Loader2 className="animate-spin" size={16}/>} Confirmar Exclusão</button>
+                    </div>
+                </div>
+            </div>
+        )}
+
+        {/* IMPORT MODAL */}
+        {showImportModal && (
+            <div className="fixed inset-0 z-[60] bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-4">
+                <div className="bg-white rounded-xl shadow-2xl w-full max-w-2xl h-[600px] flex flex-col animate-in slide-in-from-bottom-4 duration-300">
+                    <div className="p-6 border-b border-slate-200 flex justify-between items-center">
+                        <h3 className="text-xl font-bold text-slate-800 flex items-center gap-2"><Cloud className="text-blue-500"/> Importação em Massa</h3>
+                        <button onClick={() => setShowImportModal(false)} className="text-slate-400 hover:text-slate-600"><X size={24}/></button>
+                    </div>
+                    <div className="flex-1 overflow-y-auto p-6">
+                        {!isImportReviewStep ? (
+                            <div className="h-full flex flex-col">
+                                <p className="text-sm text-slate-500 mb-4">Cole seus dados abaixo. O sistema tentará identificar as colunas automaticamente. Formato sugerido: <strong>Nome | Preço | Qtd | Rendimento</strong></p>
+                                <textarea className="flex-1 w-full bg-slate-50 border border-slate-200 rounded-xl p-4 font-mono text-xs focus:ring-2 focus:ring-blue-500 outline-none resize-none leading-relaxed" placeholder={`Filé Mignon Limpo | 89.90 | 1kg | 100\nCebola Roxa | 5.49 | 1kg | 85\nLeite Condensado | 6.50 | 395g | 100`} value={importText} onChange={e => setImportText(e.target.value)}></textarea>
+                            </div>
+                        ) : (
+                            <div className="space-y-4">
+                                <div className="flex justify-between items-center">
+                                    <h4 className="font-bold text-slate-700">Revisão dos Dados ({importPreviewData.filter(i => i.isValid).length} válidos)</h4>
+                                    <button onClick={() => setIsImportReviewStep(false)} className="text-xs text-blue-600 hover:underline">Editar Texto</button>
+                                </div>
+                                <div className="border rounded-lg overflow-hidden">
+                                    <table className="w-full text-left text-xs">
+                                        <thead className="bg-slate-100 text-slate-500 font-bold uppercase"><tr><th className="p-3">Nome</th><th className="p-3">Preço</th><th className="p-3">Emb.</th><th className="p-3">Rend.</th><th className="p-3">Status</th></tr></thead>
+                                        <tbody className="divide-y divide-slate-100">
+                                            {importPreviewData.map((item, i) => (
+                                                <tr key={i} className={item.isValid ? 'bg-white' : 'bg-red-50'}>
+                                                    <td className="p-3 font-medium">{item.name || '-'}</td>
+                                                    <td className="p-3">{formatCurrency(item.price)}</td>
+                                                    <td className="p-3">{item.package_qty}{item.unit}</td>
+                                                    <td className="p-3">{item.yield_factor}%</td>
+                                                    <td className="p-3 font-bold">{item.isValid ? <span className="text-emerald-600">OK</span> : <span className="text-red-500">{item.errorMsg}</span>}</td>
+                                                </tr>
+                                            ))}
+                                        </tbody>
+                                    </table>
+                                </div>
+                            </div>
+                        )}
+                    </div>
+                    <div className="p-6 border-t border-slate-200 bg-slate-50 flex justify-end gap-3">
+                        {!isImportReviewStep ? (
+                            <button onClick={handlePreviewImport} disabled={!importText.trim()} className="bg-blue-600 hover:bg-blue-700 text-white px-6 py-2.5 rounded-lg font-bold disabled:opacity-50">Processar Texto</button>
+                        ) : (
+                            <button onClick={executeImport} disabled={isProcessingImport || !importPreviewData.some(i => i.isValid)} className="bg-emerald-600 hover:bg-emerald-700 text-white px-6 py-2.5 rounded-lg font-bold flex items-center gap-2">{isProcessingImport && <Loader2 className="animate-spin" size={16}/>} Confirmar Importação</button>
+                        )}
+                    </div>
+                </div>
+            </div>
+        )}
+
+        {/* UNSAVED CHANGES MODAL */}
+        {showUnsavedModal && (
+            <div className="fixed inset-0 z-[70] bg-slate-900/50 backdrop-blur-sm flex items-center justify-center p-4">
+                <div className="bg-white rounded-xl shadow-2xl p-6 w-full max-w-sm animate-in zoom-in-95 duration-200">
+                     <h3 className="text-lg font-bold text-slate-800 mb-2">Descartar Alterações?</h3>
+                     <p className="text-slate-500 text-sm mb-6">Você tem edições não salvas. Se sair agora, perderá o progresso.</p>
+                     <div className="flex flex-col gap-2">
+                         <button onClick={() => setShowUnsavedModal(false)} className="w-full bg-emerald-600 text-white py-2.5 rounded-lg font-bold hover:bg-emerald-700">Continuar Editando</button>
+                         <button onClick={handleDiscardChanges} className="w-full bg-white border border-slate-200 text-slate-600 py-2.5 rounded-lg font-bold hover:bg-red-50 hover:text-red-600 hover:border-red-200">Descartar e Sair</button>
+                     </div>
+                </div>
+            </div>
+        )}
+
     </div>
   );
 }
 
-// --- APP WRAPPER FOR CONTEXT PROVIDER ---
 export default function App() {
   return (
     <ToastProvider>
